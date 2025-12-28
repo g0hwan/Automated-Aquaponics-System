@@ -2,7 +2,6 @@
 
 const uint8_t rel_pin[4] = {4, 5, 6, 7};
 
-
 void pump_pin()                                          // 펌프모터 핀 설정
 {
   for (int i=0; i<4; i++)
