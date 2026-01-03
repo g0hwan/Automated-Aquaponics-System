@@ -12,7 +12,7 @@ static void dht_setoutput(void)
 {
 	GPIO_InitTypeDef gpio = {0};
 	gpio.Pin = DHT22_PIN;
-	gpio.Mode = GPIO_MODE_OUTPUT_PP;
+	gpio.Mode = GPIO_MODE_OUTPUT_OD;
 	gpio.Pull = GPIO_NOPULL;
 	gpio.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(DHT22_PORT, &gpio);
