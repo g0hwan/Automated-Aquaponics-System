@@ -6,12 +6,14 @@ volatile byte state = false;
 
 void setup() {
   pump_pin();
+  lev_pin();
   pinMode(exti, INPUT);
 }
 void loop() {
   pump(on, on, on, on);
-  //lev();
+  lev();
   if (state == true) pump(off, off, off, off);
+
 }
 
 void stop()
