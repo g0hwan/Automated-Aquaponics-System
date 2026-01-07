@@ -1,10 +1,11 @@
 #include "encoder.h"
 #include "set_motor.h"
 #include "pid.h"
-#include <math.h>
 
 const float cpr    = 400.0f;
 const float en_cnt = cpr * 2.0f;
+volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
+static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
 
 encod j1_enc = { j1_A, j1_B, 0 };
 encod j2_enc = { j2_A, j2_B, 0 };
@@ -46,18 +47,22 @@ void set_int()
 }
 
 void j1stepPulse() {
+  if(!j1_run){ digitalWrite(j1_pul, LOW); return; }
   digitalWrite(j1_pul, j1pulseState);
   j1pulseState = !j1pulseState;
 }
 void j2stepPulse() {
+  if(!j2_run){ digitalWrite(j2_pul, LOW); return; }
   digitalWrite(j2_pul, j2pulseState);
   j2pulseState = !j2pulseState;
 }
 void j3stepPulse() {
+  if(!j3_run){ digitalWrite(j3_pul, LOW); return; }
   digitalWrite(j3_pul, j3pulseState);
   j3pulseState = !j3pulseState;
 }
 void j4stepPulse() {
+  if(!j4_run){ digitalWrite(j4_pul, LOW); return; }
   digitalWrite(j4_pul, j4pulseState);
   j4pulseState = !j4pulseState;
 }
@@ -86,6 +91,7 @@ void j4EncoderA() {
 
 void move_j1(float targetAngle)
 {
+  j1_run = true;              
   noInterrupts();
   long Count = j1_enc.pos;
   interrupts();
@@ -118,6 +124,7 @@ void move_j1(float targetAngle)
 
 void move_j2(float targetAngle)
 {
+  j2_run = true;            
   noInterrupts();
   long Count = j2_enc.pos;
   interrupts();
@@ -150,6 +157,7 @@ void move_j2(float targetAngle)
 
 void move_j3(float targetAngle)
 {
+  j3_run = true;            
   noInterrupts();
   long Count = j3_enc.pos;
   interrupts();
@@ -182,6 +190,7 @@ void move_j3(float targetAngle)
 
 void move_j4(float targetAngle)
 {
+  j4_run = true;            
   noInterrupts();
   long Count = j4_enc.pos;
   interrupts();
@@ -190,7 +199,7 @@ void move_j4(float targetAngle)
   snap.pos = Count;
   float nowAngle = encoder_getAngleDeg(&snap);
 
-  float error  = targetAngle - nowAngle;
+  float error  = targetAngle + nowAngle;
   float pidOut = pid_update(&j4_pid, error);
 
   float speed = fabs(pidOut);

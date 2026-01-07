@@ -6,9 +6,11 @@
 #include <TimerThree.h>
 #include <TimerFour.h>
 #include <TimerFive.h>
+#include <math.h>
 
 extern const float cpr;
 extern const float en_cnt;
+extern volatile bool j1_run, j2_run, j3_run, j4_run;
 
 typedef struct {
   uint8_t pinA;

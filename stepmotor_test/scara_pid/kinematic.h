@@ -1,31 +1,28 @@
 #ifndef KINEMATIC_H
 #define KINEMATIC_H
 
-// theta1, theta2: rad
-x = L1*cos(theta1) + L2*cos(theta1+theta2);
-y = L1*sin(theta1) + L2*sin(theta1+theta2);
-phi_deg = -(th1_deg + th2_deg) + phi_offset;
+#include <Arduino.h>
 
-bool inverse2R(float x, float y, float L1, float L2,
+struct Pose2D {
+  float x_mm;
+  float y_mm;
+};
+
+struct Joint2R {
+  float th1_deg;
+  float th2_deg;
+};
+
+// Forward: (th1, th2) -> (x, y)
+Pose2D forward2R(float th1_deg, float th2_deg, float L1_mm, float L2_mm);
+
+// Inverse: (x, y) -> (th1, th2)
+// elbowUp=true/false 로 해 선택 가능
+bool inverse2R(float x_mm, float y_mm, float L1_mm, float L2_mm,
                bool elbowUp,
-               float &th1_deg, float &th2_deg)
-{
-  float r2 = x*x + y*y;
-  float c2 = (r2 - L1*L1 - L2*L2) / (2.0f*L1*L2);
+               float &th1_deg, float &th2_deg);
 
-  // 도달 가능 체크 + clamp
-  if (c2 >  1.0f) c2 =  1.0f;
-  if (c2 < -1.0f) c2 = -1.0f;
-
-  float s2 = sqrtf(fmaxf(0.0f, 1.0f - c2*c2));
-  if (elbowUp) s2 = -s2;                 // elbow-up/down 선택
-
-  float th2 = atan2f(s2, c2);
-  float th1 = atan2f(y, x) - atan2f(L2*s2, L1 + L2*c2);
-
-  th1_deg = th1 * 180.0f / PI;
-  th2_deg = th2 * 180.0f / PI;
-  return true;
-}
+// 그리퍼를 X축에 평행하게 유지하고 싶을 때(필요하면 사용)
+float wristPhiParallelX(float th1_deg, float th2_deg, float phi_offset_deg);
 
 #endif
