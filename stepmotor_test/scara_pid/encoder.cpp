@@ -3,8 +3,6 @@
 #include "pid.h"
 #include <math.h>
 
-extern float targetAngle;  
-
 const float cpr    = 400.0f;
 const float en_cnt = cpr * 2.0f;
 
@@ -13,11 +11,30 @@ encod j2_enc = { j2_A, j2_B, 0 };
 encod j3_enc = { j3_A, j3_B, 0 };
 encod j4_enc = { j4_A, j4_B, 0 };
 
-volatile bool pulseState = false;
-volatile long pulseInterval = 100;
+volatile bool j1pulseState = false;
+volatile bool j2pulseState = false;
+volatile bool j3pulseState = false;
+volatile bool j4pulseState = false;
+
+volatile long j1pulseInterval = 100;
+volatile long j2pulseInterval = 100;
+volatile long j3pulseInterval = 100;
+volatile long j4pulseInterval = 100;
 
 float encoder_getAngleDeg(const encod* e) {
   return -(e->pos) * 360.0f / en_cnt;
+}
+
+void set_tim()
+{
+  Timer1.initialize(50);
+  Timer1.attachInterrupt(j1stepPulse);
+  Timer3.initialize(50);
+  Timer3.attachInterrupt(j2stepPulse);
+  Timer4.initialize(50);
+  Timer4.attachInterrupt(j3stepPulse);
+  Timer5.initialize(50);
+  Timer5.attachInterrupt(j4stepPulse);
 }
 
 void set_int()
@@ -28,10 +45,23 @@ void set_int()
   attachInterrupt(digitalPinToInterrupt(j4_enc.pinA), j4EncoderA, CHANGE);
 }
 
-void stepPulse() {
-  digitalWrite(j1_pul, pulseState);
-  pulseState = !pulseState;
+void j1stepPulse() {
+  digitalWrite(j1_pul, j1pulseState);
+  j1pulseState = !j1pulseState;
 }
+void j2stepPulse() {
+  digitalWrite(j2_pul, j2pulseState);
+  j2pulseState = !j2pulseState;
+}
+void j3stepPulse() {
+  digitalWrite(j3_pul, j3pulseState);
+  j3pulseState = !j3pulseState;
+}
+void j4stepPulse() {
+  digitalWrite(j4_pul, j4pulseState);
+  j4pulseState = !j4pulseState;
+}
+
 
 void j1EncoderA() {
   bool a = digitalRead(j1_enc.pinA);
@@ -41,20 +71,20 @@ void j1EncoderA() {
 void j2EncoderA() {
   bool a = digitalRead(j2_enc.pinA);
   bool b = digitalRead(j2_enc.pinB);
-  j1_enc.pos += (a == b) ? 1 : -1;
+  j2_enc.pos += (a == b) ? 1 : -1;
 }
 void j3EncoderA() {
   bool a = digitalRead(j3_enc.pinA);
   bool b = digitalRead(j3_enc.pinB);
-  j1_enc.pos += (a == b) ? 1 : -1;
+  j3_enc.pos += (a == b) ? 1 : -1;
 }
 void j4EncoderA() {
   bool a = digitalRead(j4_enc.pinA);
   bool b = digitalRead(j4_enc.pinB);
-  j1_enc.pos += (a == b) ? 1 : -1;
+  j4_enc.pos += (a == b) ? 1 : -1;
 }
 
-void move_j1()
+void move_j1(float targetAngle)
 {
   noInterrupts();
   long Count = j1_enc.pos;
@@ -74,8 +104,8 @@ void move_j1()
   long interval = 1000000L / speed;
 
   noInterrupts();
-  pulseInterval = interval;
-  Timer1.setPeriod(pulseInterval);
+  j1pulseInterval = interval;
+  Timer1.setPeriod(j1pulseInterval);
   interrupts();
 
   digitalWrite(j1_dir, (pidOut > 0) ? LOW : HIGH);
@@ -86,7 +116,7 @@ void move_j1()
   Serial.print(" interval(us)="); Serial.println(interval);
 }
 
-void move_j2()
+void move_j2(float targetAngle)
 {
   noInterrupts();
   long Count = j2_enc.pos;
@@ -106,11 +136,75 @@ void move_j2()
   long interval = 1000000L / speed;
 
   noInterrupts();
-  pulseInterval = interval;
-  Timer3.setPeriod(pulseInterval);
+  j2pulseInterval = interval;
+  Timer3.setPeriod(j2pulseInterval);
   interrupts();
 
   digitalWrite(j2_dir, (pidOut > 0) ? LOW : HIGH);
+
+  Serial.print("Angle="); Serial.print(nowAngle);
+  Serial.print(" Error="); Serial.print(error);
+  Serial.print(" speed="); Serial.print(speed);
+  Serial.print(" interval(us)="); Serial.println(interval);
+}
+
+void move_j3(float targetAngle)
+{
+  noInterrupts();
+  long Count = j3_enc.pos;
+  interrupts();
+
+  encod snap = j3_enc;
+  snap.pos = Count;
+  float nowAngle = encoder_getAngleDeg(&snap);
+
+  float error  = targetAngle - nowAngle;
+  float pidOut = pid_update(&j3_pid, error);
+
+  float speed = fabs(pidOut);
+  if (speed < 1) speed = 1;
+  if (speed > 5000) speed = 5000;
+
+  long interval = 1000000L / speed;
+
+  noInterrupts();
+  j3pulseInterval = interval;
+  Timer4.setPeriod(j3pulseInterval);
+  interrupts();
+
+  digitalWrite(j3_dir, (pidOut > 0) ? LOW : HIGH);
+
+  Serial.print("Angle="); Serial.print(nowAngle);
+  Serial.print(" Error="); Serial.print(error);
+  Serial.print(" speed="); Serial.print(speed);
+  Serial.print(" interval(us)="); Serial.println(interval);
+}
+
+void move_j4(float targetAngle)
+{
+  noInterrupts();
+  long Count = j4_enc.pos;
+  interrupts();
+
+  encod snap = j4_enc;
+  snap.pos = Count;
+  float nowAngle = encoder_getAngleDeg(&snap);
+
+  float error  = targetAngle - nowAngle;
+  float pidOut = pid_update(&j4_pid, error);
+
+  float speed = fabs(pidOut);
+  if (speed < 1) speed = 1;
+  if (speed > 5000) speed = 5000;
+
+  long interval = 1000000L / speed;
+
+  noInterrupts();
+  j4pulseInterval = interval;
+  Timer5.setPeriod(j4pulseInterval);
+  interrupts();
+
+  digitalWrite(j4_dir, (pidOut > 0) ? LOW : HIGH);
 
   Serial.print("Angle="); Serial.print(nowAngle);
   Serial.print(" Error="); Serial.print(error);
