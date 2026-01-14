@@ -7,18 +7,21 @@ const float en_cnt = cpr * 2.0f;
 volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
 
+const unsigned int PULSE_US = 25;   // 펄스폭은 넉넉히
+const long PULSES_PER_REV = 25600;  // (가정) 1.8°모터 + 128분주
+
 encod j1_enc = { j1_A, j1_B, 0 };
-encod j2_enc = { j2_A, j2_B, 0 };
+//encod j2_enc = { j2_A, j2_B, 0 };
 encod j3_enc = { j3_A, j3_B, 0 };
 encod j4_enc = { j4_A, j4_B, 0 };
 
 volatile bool j1pulseState = false;
-volatile bool j2pulseState = false;
+//volatile bool j2pulseState = false;
 volatile bool j3pulseState = false;
 volatile bool j4pulseState = false;
 
 volatile long j1pulseInterval = 100;
-volatile long j2pulseInterval = 100;
+//volatile long j2pulseInterval = 100;
 volatile long j3pulseInterval = 100;
 volatile long j4pulseInterval = 100;
 
@@ -30,8 +33,8 @@ void set_tim()
 {
   Timer1.initialize(50);
   Timer1.attachInterrupt(j1stepPulse);
-  Timer3.initialize(50);
-  Timer3.attachInterrupt(j2stepPulse);
+ // Timer3.initialize(50);
+  //Timer3.attachInterrupt(j2stepPulse);
   Timer4.initialize(50);
   Timer4.attachInterrupt(j3stepPulse);
   Timer5.initialize(50);
@@ -41,7 +44,7 @@ void set_tim()
 void set_int()
 {
   attachInterrupt(digitalPinToInterrupt(j1_enc.pinA), j1EncoderA, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(j2_enc.pinA), j2EncoderA, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(j2_enc.pinA), j2EncoderA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(j3_enc.pinA), j3EncoderA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(j4_enc.pinA), j4EncoderA, CHANGE);
 }
@@ -51,11 +54,13 @@ void j1stepPulse() {
   digitalWrite(j1_pul, j1pulseState);
   j1pulseState = !j1pulseState;
 }
+/*
 void j2stepPulse() {
   if(!j2_run){ digitalWrite(j2_pul, LOW); return; }
   digitalWrite(j2_pul, j2pulseState);
   j2pulseState = !j2pulseState;
 }
+*/
 void j3stepPulse() {
   if(!j3_run){ digitalWrite(j3_pul, LOW); return; }
   digitalWrite(j3_pul, j3pulseState);
@@ -73,11 +78,15 @@ void j1EncoderA() {
   bool b = digitalRead(j1_enc.pinB);
   j1_enc.pos += (a == b) ? 1 : -1;
 }
+
+/*
 void j2EncoderA() {
   bool a = digitalRead(j2_enc.pinA);
   bool b = digitalRead(j2_enc.pinB);
   j2_enc.pos += (a == b) ? 1 : -1;
 }
+*/
+
 void j3EncoderA() {
   bool a = digitalRead(j3_enc.pinA);
   bool b = digitalRead(j3_enc.pinB);
@@ -121,7 +130,7 @@ void move_j1(float targetAngle)
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(" interval(us)="); Serial.println(interval);
 }
-
+/*
 void move_j2(float targetAngle)
 {
   j2_run = true;            
@@ -154,7 +163,7 @@ void move_j2(float targetAngle)
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(" interval(us)="); Serial.println(interval);
 }
-
+*/
 void move_j3(float targetAngle)
 {
   j3_run = true;            
@@ -219,4 +228,34 @@ void move_j4(float targetAngle)
   Serial.print(" Error="); Serial.print(error);
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(" interval(us)="); Serial.println(interval);
+}
+
+void stepOnce(unsigned long pps){
+  unsigned long period = 1000000UL / pps;
+  if (period <= PULSE_US + 5) period = PULSE_US + 5;
+  digitalWrite(STEP_PIN, LOW);
+  delayMicroseconds(PULSE_US);
+  digitalWrite(STEP_PIN, HIGH);
+  delayMicroseconds(period - PULSE_US);
+}
+
+
+void move_j2(float deg, unsigned long pps){
+  long pulses = (long)(fabs(deg) * (float)PULSES_PER_REV / 360.0f);
+  digitalWrite(DIR_PIN, (deg >= 0) ? LOW : HIGH);
+  delayMicroseconds(10);
+
+  for(long i=0;i<pulses;i++){
+    if (digitalRead(ALM_PIN) == LOW) { // 알람 발생(극성은 배선에 따라 반대일 수 있음)
+      break;
+    }
+    stepOnce(pps);
+  }
+
+  // 펄스 송신이 끝나면 “도착(PEND)”까지 대기
+  unsigned long t0 = millis();
+  while(millis() - t0 < 3000){  // 3초 타임아웃 예시
+    if (digitalRead(PEND_PIN) == LOW) break; // 도착(극성은 환경에 따라 반대일 수 있음)
+    if (digitalRead(ALM_PIN) == LOW) break;
+  }
 }

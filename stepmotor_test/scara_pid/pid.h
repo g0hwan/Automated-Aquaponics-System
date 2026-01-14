@@ -9,7 +9,7 @@ typedef struct {
 } PID;
 
 extern PID j1_pid;
-extern PID j2_pid;
+//extern PID j2_pid;
 extern PID j3_pid;
 extern PID j4_pid;
 
