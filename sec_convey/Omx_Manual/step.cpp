@@ -12,6 +12,7 @@ void stepPulse(bool dir, int speed) {
     delayMicroseconds(speed);
     digitalWrite(PUL, HIGH);         // OFF
     delayMicroseconds(10);          // 속도(작을수록 빠름)
+    Serial.println("후진");
   }
   else if(dir == 1)
   {
@@ -20,5 +21,6 @@ void stepPulse(bool dir, int speed) {
     delayMicroseconds(10);
     digitalWrite(PUL, HIGH);         // OFF
     delayMicroseconds(speed);          // 속도(작을수록 빠름)
+    Serial.println("전진");
   }
 }
