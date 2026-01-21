@@ -19,20 +19,23 @@ void setup()
 
 void loop()
 {
-  float ang;
+  /*float ang;
   if (usb_poll_angle(ang)) {
     // 여기서 ang(도 단위) 활용
     Serial.print("[RX] angle = ");
     Serial.println(ang, 2);
-  }
-  /*
-  moveHome();
+  }*/
   
-  for (int i = 0; i < 2000; i++) stepPulse(dir_state, 500);
+  moveCM(0, 5, 500);
+  //delay(2000);
   
-  dir_state = !dir_state;      // 다음 루프에서 방향 반대
-  delay(1000);
-  */
+  //moveHome();
+  
+  //for (int i = 0; i < 2000; i++) stepPulse(0, 200);
+  
+  //dir_state = !dir_state;      // 다음 루프에서 방향 반대
+  delay(100000);
+  
 }
 
 
