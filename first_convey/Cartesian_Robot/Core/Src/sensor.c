@@ -8,7 +8,7 @@ extern ADC_HandleTypeDef hadc1;
 ///// 적외선센서 //////
 bool Sensor_IR_Detected(void)
 {
-  return (HAL_GPIO_ReadPin(IR_PORT, IR_PIN) == GPIO_PIN_SET);
+  return (HAL_GPIO_ReadPin(IR_PORT, IR_PIN) == GPIO_PIN_RESET); // LOW면 감지
 }
 
 

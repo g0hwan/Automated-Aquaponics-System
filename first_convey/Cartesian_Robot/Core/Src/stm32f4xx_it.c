@@ -56,6 +56,10 @@
 
 /* External variables --------------------------------------------------------*/
 extern ADC_HandleTypeDef hadc1;
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim5;
+extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -210,6 +214,62 @@ void ADC_IRQHandler(void)
   /* USER CODE BEGIN ADC_IRQn 1 */
 
   /* USER CODE END ADC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM2 global interrupt.
+  */
+void TIM2_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM2_IRQn 0 */
+
+  /* USER CODE END TIM2_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim2);
+  /* USER CODE BEGIN TIM2_IRQn 1 */
+
+  /* USER CODE END TIM2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM3 global interrupt.
+  */
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+
+  /* USER CODE END USART2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM5 global interrupt.
+  */
+void TIM5_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM5_IRQn 0 */
+
+  /* USER CODE END TIM5_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim5);
+  /* USER CODE BEGIN TIM5_IRQn 1 */
+
+  /* USER CODE END TIM5_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

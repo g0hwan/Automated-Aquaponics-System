@@ -1,0 +1,14 @@
+../Core/Src/cartesian.c:46:17:TIM2_GetClockHz	16	static
+../Core/Src/cartesian.c:54:13:X_StepPWM_SetHz	24	static
+../Core/Src/cartesian.c:67:13:X_SetDir	16	static
+../Core/Src/cartesian.c:74:13:X_Enable	16	static
+../Core/Src/cartesian.c:85:13:X_Stop	8	static
+../Core/Src/cartesian.c:96:13:X_StartMoveSteps	24	static
+../Core/Src/cartesian.c:118:6:Cartesian_OnTimPeriodElapsed	16	static
+../Core/Src/cartesian.c:137:13:AlignRx_StartOnce	8	static
+../Core/Src/cartesian.c:144:6:Cartesian_OnUartRxCplt	16	static
+../Core/Src/cartesian.c:170:13:MeasureAndMoveX	32	static
+../Core/Src/cartesian.c:195:6:Cartesian_Task	8	static
+../Core/Src/cartesian.c:242:6:Cartesian_SetXStepsPerMM	16	static
+../Core/Src/cartesian.c:247:6:Cartesian_SetXRefCm	16	static
+../Core/Src/cartesian.c:252:6:Cartesian_IsBusy	4	static

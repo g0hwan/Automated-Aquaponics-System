@@ -33,13 +33,14 @@ static void StepPWM_SetHz(uint32_t hz)      	// PWM 주파수 설정
   __HAL_TIM_SET_COUNTER(&htim3, 0);
 }
 
+//////////////////////////////////////////////// 컨베이어
 static void Motor_SetDir(bool dir) // dir
 {
-  HAL_GPIO_WritePin(DIR_PORT, DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CON_DIR_PORT, CON_DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 static void Motor_Enable(bool en) // en
 {
-  HAL_GPIO_WritePin(EN_PORT, EN_PIN, en ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CON_EN_PORT, CON_EN_PIN, en ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 static void Motor_Start(uint32_t step_hz) // motor start
 {
@@ -61,7 +62,7 @@ static void Conveyor_Run(void) // 컨베이어 구동
     motor_running = true;
   }
 
-  if (Sensor_IR_Detected())
+  if (Sensor_IR_Detected()) // 컨베이어 정지
   {
     Motor_Stop();
     Motor_Enable(false);
@@ -85,7 +86,7 @@ static void Conveyor_Stop(void) // 컨베이어 정지 -> 트레이 절대거리
                      raw, mv, cm10/10, cm10%10);
 
   HAL_UART_Transmit(&huart2, (uint8_t*)buf, len, 100);
-  HAL_Delay(500);
+  //HAL_Delay(500);
 }
 
 void FirstConvey_Task(void) // 컨베이어 구동/정지 함수 (main에서 호출)
