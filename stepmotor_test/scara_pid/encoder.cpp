@@ -8,7 +8,10 @@ volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
 
 const unsigned int PULSE_US = 25;   // 펄스폭은 넉넉히
-const long PULSES_PER_REV = 25600;  // (가정) 1.8°모터 + 128분주
+const long PULSES_PER_REV = 40000;  // (가정) 1.8°모터 + 128분주
+
+float J2_LEAD_MM_PER_REV = (8.0f/4.0f);
+unsigned long J2_DEFAULT_PPS = PULSES_PER_REV * 8000;   // j2 기본 속도
 
 encod j1_enc = { j1_A, j1_B, 0 };
 //encod j2_enc = { j2_A, j2_B, 0 };

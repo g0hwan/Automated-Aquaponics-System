@@ -11,6 +11,9 @@
 extern const float cpr;
 extern const float en_cnt;
 extern volatile bool j1_run, j2_run, j3_run, j4_run;
+extern const long PULSES_PER_REV;
+extern float J2_LEAD_MM_PER_REV;
+extern unsigned long J2_DEFAULT_PPS;
 
 typedef struct {
   uint8_t pinA;
