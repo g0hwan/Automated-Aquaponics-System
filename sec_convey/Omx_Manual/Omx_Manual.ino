@@ -19,12 +19,14 @@ void setup()
 
 void loop()
 {
-  float ang;
+  /*float ang;
   if (usb_poll_angle(ang)) {
     // 여기서 ang(도 단위) 활용
     Serial.print("[RX] angle = ");
     Serial.println(ang, 2);
-  }
+  }*/
+  delay(2000);
+  moveCM(1, 5, 400);
   /*
   moveHome();
   
