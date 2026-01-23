@@ -7,26 +7,24 @@ const float en_cnt = cpr * 2.0f;
 volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
 
-const unsigned int PULSE_US = 25;   // 펄스폭은 넉넉히
-const long PULSES_PER_REV = 40000;  // (가정) 1.8°모터 + 128분주
-
-float J2_LEAD_MM_PER_REV = (8.0f/4.0f);
-unsigned long J2_DEFAULT_PPS = PULSES_PER_REV * 8000;   // j2 기본 속도
-
 encod j1_enc = { j1_A, j1_B, 0 };
-//encod j2_enc = { j2_A, j2_B, 0 };
 encod j3_enc = { j3_A, j3_B, 0 };
 encod j4_enc = { j4_A, j4_B, 0 };
 
 volatile bool j1pulseState = false;
-//volatile bool j2pulseState = false;
 volatile bool j3pulseState = false;
 volatile bool j4pulseState = false;
 
 volatile long j1pulseInterval = 100;
-//volatile long j2pulseInterval = 100;
 volatile long j3pulseInterval = 100;
 volatile long j4pulseInterval = 100;
+
+// z축 
+const unsigned int PULSE_US = 15;   // 펄스폭은 넉넉히
+const long PULSES_PER_REV = 1600;  // (가정) 1.8°모터 + 128분주
+float J2_LEAD_MM_PER_REV = (8.0f/1.0f);
+unsigned long J2_DEFAULT_PPS =40000;   // j2 기본 속도
+volatile bool j2_endstop_hit = false;
 
 float encoder_getAngleDeg(const encod* e) {
   return -(e->pos) * 360.0f / en_cnt;
@@ -47,9 +45,9 @@ void set_tim()
 void set_int()
 {
   attachInterrupt(digitalPinToInterrupt(j1_enc.pinA), j1EncoderA, CHANGE);
-  //attachInterrupt(digitalPinToInterrupt(j2_enc.pinA), j2EncoderA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(j3_enc.pinA), j3EncoderA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(j4_enc.pinA), j4EncoderA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(stop_z), j2EndstopISR, FALLING);
 }
 
 void j1stepPulse() {
@@ -249,6 +247,8 @@ void move_j2(float deg, unsigned long pps){
   delayMicroseconds(10);
 
   for(long i=0;i<pulses;i++){
+    if (deg >= 0 && (j2_endstop_hit || digitalRead(stop_z) == LOW)) break;
+
     if (digitalRead(ALM_PIN) == LOW) { // 알람 발생(극성은 배선에 따라 반대일 수 있음)
       break;
     }
@@ -261,4 +261,8 @@ void move_j2(float deg, unsigned long pps){
     if (digitalRead(PEND_PIN) == LOW) break; // 도착(극성은 환경에 따라 반대일 수 있음)
     if (digitalRead(ALM_PIN) == LOW) break;
   }
+}
+
+void j2EndstopISR(){
+  j2_endstop_hit = true;   // ISR은 플래그만!
 }

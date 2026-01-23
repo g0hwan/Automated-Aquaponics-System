@@ -12,7 +12,7 @@ void setup() {
 
 void loop() {
   //move_j2(-30.0,8000);
-  move_j2_mm(-10);
+  move_j2_mm(10);
   delay(10000);
   
 }

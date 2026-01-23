@@ -14,9 +14,10 @@
 //z축
 #define STEP_PIN  26
 #define DIR_PIN  27
-//#define j2_en   28
+#define j2_en   28
 #define PEND_PIN    21
 #define ALM_PIN    29
+#define stop_z 3
 
 //중간 관절
 #define j3_pul  10
@@ -37,18 +38,15 @@
 static inline void motor_pin()
 {
   pinMode(j1_pul, OUTPUT); pinMode(j1_dir, OUTPUT); pinMode(j1_en, OUTPUT);
-  //pinMode(j2_pul, OUTPUT); pinMode(j2_dir, OUTPUT); pinMode(j2_en, OUTPUT);
   pinMode(j3_pul, OUTPUT); pinMode(j3_dir, OUTPUT); pinMode(j3_en, OUTPUT);
   pinMode(j4_pul, OUTPUT); pinMode(j4_dir, OUTPUT); pinMode(j4_en, OUTPUT);
 
   digitalWrite(j1_en, HIGH);
-  //digitalWrite(j2_en, HIGH);
   digitalWrite(j3_en, HIGH);
   digitalWrite(j4_en, HIGH);
 
 
   pinMode(j1_A, INPUT_PULLUP); pinMode(j1_B, INPUT_PULLUP);
-  //pinMode(j2_A, INPUT_PULLUP); pinMode(j2_B, INPUT_PULLUP);
   pinMode(j3_A, INPUT_PULLUP); pinMode(j3_B, INPUT_PULLUP);
   pinMode(j4_A, INPUT_PULLUP); pinMode(j4_B, INPUT_PULLUP);
   
@@ -58,6 +56,8 @@ static inline void motor_pin()
 
   pinMode(PEND_PIN, INPUT_PULLUP);
   pinMode(ALM_PIN, INPUT_PULLUP);
+
+  pinMode(stop_z, INPUT_PULLUP);
 }
 
 #endif

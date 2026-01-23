@@ -14,6 +14,7 @@ extern volatile bool j1_run, j2_run, j3_run, j4_run;
 extern const long PULSES_PER_REV;
 extern float J2_LEAD_MM_PER_REV;
 extern unsigned long J2_DEFAULT_PPS;
+extern volatile bool j2_endstop_hit;
 
 typedef struct {
   uint8_t pinA;
@@ -54,4 +55,6 @@ void move_j1(float targetAngle);
 void move_j2(float deg, unsigned long pps);
 void move_j3(float targetAngle);
 void move_j4(float targetAngle);
+
+void j2EndstopISR();
 #endif

@@ -8,4 +8,5 @@
 
 void move_j2_mm(float mm, unsigned long pps =  J2_DEFAULT_PPS);
 void move_j2_cm(float cm, unsigned long pps =  J2_DEFAULT_PPS);
+void home();
 #endif

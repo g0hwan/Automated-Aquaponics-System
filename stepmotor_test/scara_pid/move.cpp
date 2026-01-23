@@ -12,3 +12,9 @@ void move_j2_cm(float cm, unsigned long pps)
 {
   move_j2_mm(cm * 10.0f, pps);
 }
+
+void home()
+{
+  move_j2(7200.f, 40000);
+  move_j2_cm(5);
+}
