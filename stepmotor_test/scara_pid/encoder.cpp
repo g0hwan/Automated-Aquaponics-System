@@ -54,23 +54,11 @@ void j1stepPulse() {
   j1pulseState = !j1pulseState;
 }
 
-void j4stepPulse() {
-  if(!j4_run){ digitalWrite(j4_pul, LOW); return; }
-  digitalWrite(j4_pul, j4pulseState);
-  j4pulseState = !j4pulseState;
-}
-
 
 void j1EncoderA() {//엔코더 읽기
   bool a = digitalRead(j1_enc.pinA);
   bool b = digitalRead(j1_enc.pinB);
   j1_enc.pos += (a == b) ? 1 : -1;
-}
-
-void j4EncoderA() {
-  bool a = digitalRead(j4_enc.pinA);
-  bool b = digitalRead(j4_enc.pinB);
-  j4_enc.pos += (a == b) ? 1 : -1;
 }
 
 void move_j1(float targetAngle)
@@ -200,12 +188,51 @@ void move_j3_wait(float targetAngle,
   j3_run = false;
   digitalWrite(j3_pul, LOW);
 }
+static void j3_set_pps(unsigned long pps) {
+  if (pps < 1) pps = 1;
+  unsigned long isr_us = 1000000UL / (2 * pps);  // 토글이라 2배
+  if (isr_us < 50) isr_us = 50;                  // 너무 빠른 값 방지(필요시 조절)
+  noInterrupts();
+  Timer4.setPeriod(isr_us);
+  interrupts();
+  j3_run = true;
+}
+void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
+{
+  pinMode(stop_j3, INPUT_PULLUP);
+
+  digitalWrite(j3_dir, dir_to_switch ? HIGH : LOW);
+  j3_set_pps(pps);
+  j3_run = true;
+
+  // 스위치 눌릴 때까지 계속 구동
+  while (digitalRead(stop_j3) != LOW) {  }
+
+  // 눌리면 정지
+  j3_run = false;
+  digitalWrite(j3_pul, LOW);
+}
 ////////////////////////////////////////////////////////////////////////////////////////////
 
+//관절 4에 대한 함수들//////////////////////////////////////////////////////////////////////
+void j4stepPulse() {
+  if(!j4_run){ digitalWrite(j4_pul, LOW); return; }
+  digitalWrite(j4_pul, j4pulseState);
+  j4pulseState = !j4pulseState;
+}
 
-void move_j4(float targetAngle)
+void j4EncoderA() {
+  bool a = digitalRead(j4_enc.pinA);
+  bool b = digitalRead(j4_enc.pinB);
+  j4_enc.pos += (a == b) ? 1 : -1;
+}
+
+bool move_j4(float targetAngle, float tolDeg = 1.0f)
 {
+  float Angle = 4.5 * targetAngle;
+
   j4_run = true;            
+  
   noInterrupts();
   long Count = j4_enc.pos;
   interrupts();
@@ -214,7 +241,7 @@ void move_j4(float targetAngle)
   snap.pos = Count;
   float nowAngle = encoder_getAngleDeg(&snap);
 
-  float error  = targetAngle + nowAngle;
+  float error  = Angle - nowAngle;
   float pidOut = pid_update(&j4_pid, error);
 
   float speed = fabs(pidOut);
@@ -234,7 +261,83 @@ void move_j4(float targetAngle)
   Serial.print(" Error="); Serial.print(error);
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(" interval(us)="); Serial.println(interval);
+  
+  if (fabs(error) <= tolDeg) {
+    j4_run = false;              
+    digitalWrite(j4_pul, LOW);   
+    return true;                 
+  }
+  return false;  
 }
+static float j4_now_deg() // 현재 각도값 저장하는 함수
+{
+  noInterrupts();
+  long c = j4_enc.pos;
+  interrupts();
+
+  encod snap = j4_enc;
+  snap.pos = c;
+  return encoder_getAngleDeg(&snap);
+}
+
+static float j4_error_deg(float targetAngle) //현재 오차값 저장하는 함수
+{
+  return (4.5f * targetAngle) - j4_now_deg();
+} 
+
+void move_j4_wait(float targetAngle,
+                  float tolDeg = 1.0f,
+                  unsigned long stable_ms = 150,
+                  unsigned long timeout_ms = 8000) //연속동작 가능
+{
+  unsigned long t0 = millis();
+  unsigned long inTolSince = 0;
+
+  while (true) {
+    move_j4(targetAngle);                 
+
+    float e = j4_error_deg(targetAngle);
+    if (fabs(e) <= tolDeg) {
+      if (inTolSince == 0) inTolSince = millis();
+      if (millis() - inTolSince >= stable_ms) break;
+    } else {
+      inTolSince = 0;
+    }
+
+    if (millis() - t0 > timeout_ms) break;
+    delay(5);
+  }
+
+  // 정지(필요하면)
+  j4_run = false;
+  digitalWrite(j4_pul, LOW);
+}
+static void j4_set_pps(unsigned long pps) {
+  if (pps < 1) pps = 1;
+  unsigned long isr_us = 1000000UL / (2 * pps);  // 토글이라 2배
+  if (isr_us < 50) isr_us = 50;                  // 너무 빠른 값 방지(필요시 조절)
+  noInterrupts();
+  Timer5.setPeriod(isr_us);
+  interrupts();
+  j4_run = true;
+}
+void j4_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
+{
+  pinMode(stop_j4, INPUT_PULLUP);
+
+  digitalWrite(j4_dir, dir_to_switch ? HIGH : LOW);
+  j4_set_pps(pps);
+  j4_run = true;
+
+  // 스위치 눌릴 때까지 계속 구동
+  while (digitalRead(stop_j4) != LOW) {  }
+
+  // 눌리면 정지
+  j4_run = false;
+  digitalWrite(j4_pul, LOW);
+}
+////////////////////////////////////////////////////////////////////////////////
+
 
 void stepOnce(unsigned long pps){
   unsigned long period = 1000000UL / pps;

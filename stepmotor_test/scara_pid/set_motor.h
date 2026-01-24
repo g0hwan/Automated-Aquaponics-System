@@ -35,6 +35,7 @@
 #define j4_A    20
 #define j4_B    24
 #define j4_Z    25
+#define stop_j4 51
 
 static inline void motor_pin()
 {
@@ -60,6 +61,7 @@ static inline void motor_pin()
 
   pinMode(stop_z, INPUT_PULLUP);
   pinMode(stop_j3, INPUT_PULLUP);
+  pinMode(stop_j4, INPUT_PULLUP);
 }
 
 #endif

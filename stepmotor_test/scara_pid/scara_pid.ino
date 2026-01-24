@@ -17,11 +17,12 @@ void setup() {
 }
 
 void loop() {
-  /*
+  delay(8000);
+  move_j4_wait(90,2000);
   move_j3_wait(50);
   home();
   delay(10000);
-  */
 
-  
+  //if (digitalRead(stop_j4)==LOW) Serial.println("스위치 인식");
+  //else Serial.println("스위치 인식x");
 }

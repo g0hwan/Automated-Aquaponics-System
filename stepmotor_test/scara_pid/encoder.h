@@ -59,13 +59,21 @@ void move_j3_wait(float targetAngle,
                   unsigned long stable_ms = 150,
                   unsigned long timeout_ms = 8000);
 void enc_reset_j3();
+void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps);
 
-void move_j4(float targetAngle);
+
+void move_j4_wait(float targetAngle,
+                  float tolDeg = 1.0f,
+                  unsigned long stable_ms = 150,
+                  unsigned long timeout_ms = 8000);
+
+bool move_j4(float targetAngle, float tolDeg = 1.0f);
+void enc_reset_j4();
+void j4_home_stop_on_switch(bool dir_to_switch, unsigned long pps);
 
 
 void enc_reset_all();          
 void enc_reset_j1();
-void enc_reset_j4();
 
 
 

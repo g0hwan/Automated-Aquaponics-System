@@ -28,33 +28,13 @@ void home()
   j3_home_stop_on_switch(true, 8000);
   enc_reset_j3();
   move_j3_wait(-15);
-  
+
+  j4_home_stop_on_switch(true, 2000);
+  enc_reset_j4();
+  move_j3_wait(-15,4000);
 }
 
-static void j3_set_pps(unsigned long pps) {
-  if (pps < 1) pps = 1;
-  unsigned long isr_us = 1000000UL / (2 * pps);  // 토글이라 2배
-  if (isr_us < 50) isr_us = 50;                  // 너무 빠른 값 방지(필요시 조절)
-  noInterrupts();
-  Timer4.setPeriod(isr_us);
-  interrupts();
-  j3_run = true;
-}
-void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
-{
-  pinMode(stop_j3, INPUT_PULLUP);
 
-  digitalWrite(j3_dir, dir_to_switch ? HIGH : LOW);
-  j3_set_pps(pps);
-  j3_run = true;
-
-  // 스위치 눌릴 때까지 계속 구동
-  while (digitalRead(stop_j3) != LOW) {  }
-
-  // 눌리면 정지
-  j3_run = false;
-  digitalWrite(j3_pul, LOW);
-}
 
 
 
