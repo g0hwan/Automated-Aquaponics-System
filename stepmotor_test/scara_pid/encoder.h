@@ -40,21 +40,33 @@ void set_tim();
 void set_int();
 
 void j1stepPulse();
-//void j2stepPulse();
 void j3stepPulse();
 void j4stepPulse();
 
 void j1EncoderA();
-//void j2EncoderA();
 void j3EncoderA();
 void j4EncoderA();
 void set_int();
 
 void move_j1(float targetAngle);   
-//void move_j2(float targetAngle);
-void move_j2(float deg, unsigned long pps);
-void move_j3(float targetAngle);
+
+bool move_j2(float deg, unsigned long pps);
+void j2EndstopISR();
+
+bool move_j3(float targetAngle, float tolDeg = 1.0f);
+void move_j3_wait(float targetAngle,
+                  float tolDeg = 1.0f,
+                  unsigned long stable_ms = 150,
+                  unsigned long timeout_ms = 8000);
+void enc_reset_j3();
+
 void move_j4(float targetAngle);
 
-void j2EndstopISR();
+
+void enc_reset_all();          
+void enc_reset_j1();
+void enc_reset_j4();
+
+
+
 #endif

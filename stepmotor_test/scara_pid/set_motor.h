@@ -26,6 +26,7 @@
 #define j3_A    19
 #define j3_B    14
 #define j3_Z    15
+#define stop_j3 50
 
 //엔드이펙터 회전
 #define j4_pul  16
@@ -58,6 +59,7 @@ static inline void motor_pin()
   pinMode(ALM_PIN, INPUT_PULLUP);
 
   pinMode(stop_z, INPUT_PULLUP);
+  pinMode(stop_j3, INPUT_PULLUP);
 }
 
 #endif
