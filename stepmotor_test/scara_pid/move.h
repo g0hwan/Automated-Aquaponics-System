@@ -1,6 +1,13 @@
 #ifndef MOVE_H
 #define MOVE_H
 
-void move(float j1, float j2, float j3, float j4);
+#include "encoder.h"
+#include "set_motor.h"
+#include "kinematic.h"
 
+//unsigned long J2_DEFAULT_PP;
+
+void move_j2_mm(float mm, unsigned long pps =  J2_DEFAULT_PPS);
+void move_j2_cm(float cm, unsigned long pps =  J2_DEFAULT_PPS);
+void home();
 #endif
