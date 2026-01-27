@@ -28,6 +28,8 @@ float J2_LEAD_MM_PER_REV = (8.0f/1.0f);
 unsigned long J2_DEFAULT_PPS =500000;   // j2 기본 속도
 volatile bool j2_endstop_hit = false;
 
+constexpr bool EN_ACTIVE_LOW = false; // 모터enable
+
 float encoder_getAngleDeg(const encod* e) {
   return -(e->pos) * 360.0f / en_cnt;
 }
@@ -557,6 +559,34 @@ void enc_reset_j4()
 }
 ////////////////////////////////////////////////////////////////////////////////
 
+// 스텝모터 enable
+static inline void j1_enable(bool on)
+{
+  pinMode(j1_en, OUTPUT);
+  digitalWrite(j1_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void j3_enable(bool on)
+{
+  pinMode(j3_en, OUTPUT);
+  digitalWrite(j3_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void j4_enable(bool on)
+{
+  pinMode(j4_en, OUTPUT);
+  digitalWrite(j4_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void motors_enable_all(bool on) // 전체 en
+{
+  j1_enable(on);
+  j3_enable(on);
+  j4_enable(on);
+  pinMode(j2_en, OUTPUT);
+  digitalWrite(j2_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
 
 void enc_reset_all()
 {

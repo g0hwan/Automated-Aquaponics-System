@@ -55,7 +55,7 @@ static inline void motor_pin()
   
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
-  digitalWrite(STEP_PIN, HIGH);
+  digitalWrite(STEP_PIN, HIGH); // z축, j2
 
   pinMode(PEND_PIN, INPUT_PULLUP);
   pinMode(ALM_PIN, INPUT_PULLUP);
