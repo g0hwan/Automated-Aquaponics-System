@@ -21,8 +21,8 @@ void home()
   delay(500);
   enc_reset_j1();
   //delay(50);
-  move_j1_wait(-180.0f);
-  delay(50);
+  //move_j1_wait(-180.0f);
+  //delay(50);
 
   bool ok = move_j2(7200.0f, 600000);
 
@@ -31,21 +31,23 @@ void home()
   }
   move_j2_cm(-5.0f);
 
-  move_j3_wait(200);
+  //move_j3_wait(200);
   delay(50);
   j3_home_stop_on_switch(true, 3000);
   delay(500);
   enc_reset_j3();
-  move_j3_wait(-20.0f);
-  delay(50);
+  delay(500);
+  //move_j3_wait(-25.0f);
+  move_j3_wait(175.0f);
+  delay(500);
 
   //move_j4_wait(20);
   //delay(50);
   j4_home_stop_on_switch_safe(true, 2000);
   delay(500);
-  enc_reset_j4();
   //move_j4_wait(-15.0f);
   //delay(50);
+  enc_reset_all();
 }
 
 
@@ -63,6 +65,7 @@ void goXY(float x, float y)
   move_j1_wait(th1);
   move_j3_wait(th2);
   Serial.println(th2);
+  Serial.println(th1);
 }
 
 void printXY(float th1_deg, float th2_deg)

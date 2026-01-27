@@ -4,7 +4,7 @@
 
 const float cpr    = 400.0f;
 const float en_cnt = cpr * 2.0f;
-const int j3_gear = 9;
+const int j3_gear = 16;
 const int j1_gear = 20;
 volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
@@ -68,7 +68,7 @@ void j1EncoderA() {//엔코더 읽기
   j1_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j1(float targetAngle, float tolDeg = 1.0f)
+bool move_j1(float targetAngle, float tolDeg = 0.3f)
 {
   float Angle = j1_gear * targetAngle;
 
@@ -236,7 +236,7 @@ void j3EncoderA() {
   j3_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j3(float targetAngle, float tolDeg = 1.0f)
+bool move_j3(float targetAngle, float tolDeg = 0.1f)
 {
   float Angle = j3_gear * targetAngle;
 
@@ -255,7 +255,7 @@ bool move_j3(float targetAngle, float tolDeg = 1.0f)
 
   float speed = fabs(pidOut);
   if (speed < 1) speed = 1;
-  if (speed > 4000) speed = 4000;
+  if (speed > 5000) speed = 5000;
 
   long interval = 1000000L / (2.0f * speed);
 
@@ -376,7 +376,7 @@ void j4EncoderA() {
   j4_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j4(float targetAngle, float tolDeg = 1.0f)
+bool move_j4(float targetAngle, float tolDeg = 0.3f)
 {
   float Angle = 4.5 * targetAngle;
 
