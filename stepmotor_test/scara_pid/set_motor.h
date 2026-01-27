@@ -10,9 +10,10 @@
 #define j1_A    18
 #define j1_B    8
 #define j1_Z    9
+#define stop_j1 52
 
 //z축
-#define STEP_PIN  26
+#define STEP_PIN  37
 #define DIR_PIN  27
 #define j2_en   28
 #define PEND_PIN    21
@@ -35,7 +36,7 @@
 #define j4_A    20
 #define j4_B    24
 #define j4_Z    25
-#define stop_j4 51
+#define stop_j4 48
 
 static inline void motor_pin()
 {
@@ -60,6 +61,7 @@ static inline void motor_pin()
   pinMode(ALM_PIN, INPUT_PULLUP);
 
   pinMode(stop_z, INPUT_PULLUP);
+  pinMode(stop_j1, INPUT_PULLUP);
   pinMode(stop_j3, INPUT_PULLUP);
   pinMode(stop_j4, INPUT_PULLUP);
 }
