@@ -23,6 +23,11 @@
 /* USER CODE BEGIN Includes */
 #include "first_convey.h"
 #include "cartesian.h"
+
+//////////////////////////////
+#include "board_pin.h"
+#include <stdbool.h>
+////////////////////////////
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,7 +37,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TEST_MODE 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,6 +57,224 @@ UART_HandleTypeDef huart2;
 volatile uint32_t tim2_cnt = 0;
 volatile uint32_t uart2_cnt = 0;
 
+// ===================== 테스트 선택 =====================//////////////////////////////////////
+// 1: X축만 1회(왕복)
+// 2: Z축만 1회(왕복)
+// 3: X축 1회(왕복) -> Z축 1회(왕복)
+#define TEST_TARGET  3
+
+// 이동 파라미터(너 상황에 맞게 조절)
+#define TEST_STEPS   4000     // 이동 스텝 수(크면 더 많이 감)
+#define TEST_HZ      1000     // 스텝 주파수(속도). 1000~5000 권장
+#define PAUSE_MS     1000      // 동작 사이 쉬는 시간
+
+extern TIM_HandleTypeDef htim2;   // X축: TIM2 CH1 (PA5)
+extern TIM_HandleTypeDef htim5;   // Z축: TIM5 CH1 (PA0)
+
+// EN 극성(모터드라이버에 따라 바뀜)
+// 1이면 EN=HIGH가 Enable, 0이면 EN=LOW가 Enable
+#define X_EN_ACTIVE_HIGH  1
+#define Z_EN_ACTIVE_HIGH  1
+
+typedef enum {
+  T_IDLE = 0,
+
+  T_X_FWD_START, T_X_FWD_WAIT,
+  T_X_REV_START, T_X_REV_WAIT,
+
+  T_Z_FWD_START, T_Z_FWD_WAIT,
+  T_Z_REV_START, T_Z_REV_WAIT,
+
+  T_DONE
+} TestState;
+
+static volatile TestState tstate = T_IDLE;
+
+static volatile uint32_t x_remain = 0;
+static volatile uint32_t z_remain = 0;
+static volatile bool x_busy = false;
+static volatile bool z_busy = false;
+
+static uint32_t APB1_TimerClockHz(void)
+{
+  uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+  if ((RCC->CFGR & RCC_CFGR_PPRE1) != RCC_CFGR_PPRE1_DIV1) return pclk1 * 2;
+  return pclk1;
+}
+
+static void PWM_SetHz(TIM_HandleTypeDef *htim, uint32_t channel, uint32_t hz)
+{
+  if (hz < 1) hz = 1;
+  uint32_t timclk = APB1_TimerClockHz();   // TIM2/TIM5 모두 APB1 타이머
+  uint32_t arr = (timclk / hz) - 1;
+
+  __HAL_TIM_SET_PRESCALER(htim, 0);
+  __HAL_TIM_SET_AUTORELOAD(htim, arr);
+  __HAL_TIM_SET_COMPARE(htim, channel, arr / 10); // 50% duty
+  __HAL_TIM_SET_COUNTER(htim, 0);
+}
+
+// ===== X 축 제어 =====
+static void X_SetDir(bool dir)
+{
+  HAL_GPIO_WritePin(CAR_X_DIR_PORT, CAR_X_DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+static void X_Enable(bool en)
+{
+  GPIO_PinState on  = X_EN_ACTIVE_HIGH ? GPIO_PIN_SET : GPIO_PIN_RESET;
+  GPIO_PinState off = X_EN_ACTIVE_HIGH ? GPIO_PIN_RESET : GPIO_PIN_SET;
+  HAL_GPIO_WritePin(CAR_X_EN_PORT, CAR_X_EN_PIN, en ? on : off);
+}
+
+static void X_Stop(void)
+{
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+  __HAL_TIM_DISABLE_IT(&htim2, TIM_IT_UPDATE);
+  //X_Enable(false);
+  x_remain = 0;
+  x_busy = false;
+}
+
+static void X_Start(uint32_t steps, bool dir, uint32_t hz)
+{
+  if (steps == 0) return;
+  X_SetDir(dir);
+  HAL_Delay(20);
+  X_Enable(true);
+
+  x_remain = steps;
+  x_busy = true;
+
+  PWM_SetHz(&htim2, TIM_CHANNEL_1, hz);
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+  __HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
+
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+}
+
+// ===== Z 축 제어 =====
+static void Z_SetDir(bool dir)
+{
+  HAL_GPIO_WritePin(CAR_Z_DIR_PORT, CAR_Z_DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+static void Z_Enable(bool en)
+{
+  GPIO_PinState on  = Z_EN_ACTIVE_HIGH ? GPIO_PIN_SET : GPIO_PIN_RESET;
+  GPIO_PinState off = Z_EN_ACTIVE_HIGH ? GPIO_PIN_RESET : GPIO_PIN_SET;
+  HAL_GPIO_WritePin(CAR_Z_EN_PORT, CAR_Z_EN_PIN, en ? on : off);
+}
+
+static void Z_Stop(void)
+{
+  HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_1);
+  __HAL_TIM_DISABLE_IT(&htim5, TIM_IT_UPDATE);
+  //Z_Enable(false);
+  z_remain = 0;
+  z_busy = false;
+}
+
+static void Z_Start(uint32_t steps, bool dir, uint32_t hz)
+{
+  if (steps == 0) return;
+  Z_SetDir(dir);
+  HAL_Delay(2);
+  Z_Enable(true);
+
+  z_remain = steps;
+  z_busy = true;
+
+  PWM_SetHz(&htim5, TIM_CHANNEL_1, hz);
+  __HAL_TIM_CLEAR_FLAG(&htim5, TIM_FLAG_UPDATE);
+  __HAL_TIM_ENABLE_IT(&htim5, TIM_IT_UPDATE);
+
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
+}
+
+// ===== 테스트 러너 =====
+void Test_RunOnce_Task(void)
+{
+  static uint32_t t0 = 0;
+
+  switch (tstate)
+  {
+    case T_IDLE:
+     // X_Enable(false);
+      //Z_Enable(false);
+      t0 = HAL_GetTick();
+
+      if (TEST_TARGET == 1 || TEST_TARGET == 3) tstate = T_X_FWD_START;
+      else                                      tstate = T_Z_FWD_START;
+      break;
+
+    // -------- X 왕복 --------
+    case T_X_FWD_START:
+      if (HAL_GetTick() - t0 < PAUSE_MS) break;
+      X_Start(TEST_STEPS, true, TEST_HZ);
+      tstate = T_X_FWD_WAIT;
+      break;
+
+    case T_X_FWD_WAIT:
+      if (!x_busy) { t0 = HAL_GetTick(); tstate = T_X_REV_START; }
+      break;
+
+    case T_X_REV_START:
+      if (HAL_GetTick() - t0 < PAUSE_MS) break;
+      X_Start(TEST_STEPS, false, TEST_HZ);
+      tstate = T_X_REV_WAIT;
+      break;
+
+    case T_X_REV_WAIT:
+      if (!x_busy) {
+        t0 = HAL_GetTick();
+        if (TEST_TARGET == 1) tstate = T_DONE;
+        else                  tstate = T_Z_FWD_START;
+      }
+      break;
+
+    // -------- Z 왕복 --------
+    case T_Z_FWD_START:
+      if (HAL_GetTick() - t0 < PAUSE_MS) break;
+      Z_Start(TEST_STEPS, true, TEST_HZ);
+      tstate = T_Z_FWD_WAIT;
+      break;
+
+    case T_Z_FWD_WAIT:
+      if (!z_busy) { t0 = HAL_GetTick(); tstate = T_Z_REV_START; }
+      break;
+
+    case T_Z_REV_START:
+      if (HAL_GetTick() - t0 < PAUSE_MS) break;
+      Z_Start(TEST_STEPS, false, TEST_HZ);
+      tstate = T_Z_REV_WAIT;
+      break;
+
+    case T_Z_REV_WAIT:
+      if (!z_busy) tstate = T_DONE;
+      break;
+
+    case T_DONE:
+    default:
+      // 여기서 멈춤(원하면 while(1)로 고정해도 됨)
+      break;
+  }
+}
+
+// TIM2/TIM5 Update 인터럽트에서 스텝 카운트 감소 → 0이면 자동 정지
+void Test_RunOnce_OnTimPeriodElapsed(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM2 && x_busy) {
+    if (x_remain) x_remain--;
+    if (x_remain == 0) X_Stop();
+  }
+
+  if (htim->Instance == TIM5 && z_busy) {
+    if (z_remain) z_remain--;
+    if (z_remain == 0) Z_Stop();
+  }
+}
+/////////////////////////////////////////////////////////////////////
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,12 +336,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-#if TEST_MODE == 1
-  while (1)
-  {
-    FirstConvey_Task();
-  }
-#endif
+	  Test_RunOnce_Task();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -266,7 +483,7 @@ static void MX_TIM2_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
@@ -374,7 +591,7 @@ static void MX_TIM5_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
@@ -474,12 +691,18 @@ static void MX_GPIO_Init(void)
 //  if (htim->Instance == TIM2) tim2_cnt++;
 //  Cartesian_OnTimPeriodElapsed(htim);
 //}
-//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-//{
-//  if (huart->Instance == USART2) uart2_cnt++;
-//  Cartesian_OnUartRxCplt(huart);
-//}
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART2) uart2_cnt++;
+  Cartesian_OnUartRxCplt(huart);
+}
+///////////////////////////////////////////////////////////////////
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  Test_RunOnce_OnTimPeriodElapsed(htim);   // <- 이거로 교체
+}
+//////////////////////////////////////////////////////////////
 /* USER CODE END 4 */
 
 /**
