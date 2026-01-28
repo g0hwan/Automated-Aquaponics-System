@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <TimerOne.h>
+#include <TimerThree.h>
 #include <TimerFour.h>
 #include <TimerFive.h>
 #include <math.h>

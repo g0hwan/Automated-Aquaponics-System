@@ -95,3 +95,19 @@ void goXY_keepParallel(float x, float y)
   move_j4_wait(wrist_deg);   // 너 프로젝트에 j4가 있다면
 }
 
+void tool(bool on)
+{
+  if (on)
+  {
+    digitalWrite(num1, HIGH);
+    digitalWrite(num2, HIGH);
+    digitalWrite(num3, HIGH);
+  }
+  else 
+  {
+    digitalWrite(num1, LOW);
+    digitalWrite(num2, LOW);
+    digitalWrite(num3, LOW);
+  }
+
+}

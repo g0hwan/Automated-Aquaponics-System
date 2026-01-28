@@ -39,10 +39,16 @@
 #define stop_j4 48
 
 //리니어 레일
-#define rail_pul  43
-#define rail_dir  44
-#define rail_en   45
-#define stop_rail 46
+#define rail_pul  41
+#define rail_dir  42
+#define rail_en   43
+#define stop_rail 44
+
+
+//릴레이 핀 설정
+#define num1 45
+#define num2 46
+#define num3 47
 
 static inline void motor_pin()
 {
@@ -89,6 +95,9 @@ static inline void motor_pin()
   pinMode(stop_j4, INPUT_PULLUP);
   pinMode(stop_rail, INPUT_PULLUP);
 
+  pinMode(num1, OUTPUT);
+  pinMode(num2, OUTPUT);
+  pinMode(num3, OUTPUT);
 
 }
 
