@@ -137,6 +137,8 @@ void move_j1_wait(float targetAngle,
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
 
+  motors_enable_all(true);
+
   while (true) {
     move_j1(targetAngle);                 
 
@@ -155,6 +157,7 @@ void move_j1_wait(float targetAngle,
   // 정지(필요하면)
   j1_run = false;
   digitalWrite(j1_pul, LOW);
+  motors_enable_all(false);
 }
 
 static void j1_set_pps(unsigned long pps) {
@@ -305,6 +308,8 @@ void move_j3_wait(float targetAngle,
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
 
+  motors_enable_all(true);
+
   while (true) {
     move_j3(targetAngle);                 
 
@@ -323,6 +328,8 @@ void move_j3_wait(float targetAngle,
   // 정지(필요하면)
   j3_run = false;
   digitalWrite(j3_pul, LOW);
+
+  motors_enable_all(false);
 }
 static void j3_set_pps(unsigned long pps) {
   if (pps < 1) pps = 1;
@@ -444,6 +451,8 @@ void move_j4_wait(float targetAngle,
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
 
+  motors_enable_all(true);
+
   while (true) {
     move_j4(targetAngle);                 
 
@@ -462,12 +471,10 @@ void move_j4_wait(float targetAngle,
   // 정지(필요하면)
   j4_run = false;
   digitalWrite(j4_pul, LOW);
+
+  motors_enable_all(false);
 }
 // 필요하면 네 enable 핀에 맞게 수정 (TB6600: ENA-LOW enable인 경우 많음)
-static inline void j4_enable(bool on){
-  // pinMode(j4_en, OUTPUT);
-  // digitalWrite(j4_en, on ? LOW : HIGH);
-}
 
 static void j4_set_pps(unsigned long pps) { 
   if (pps < 1) pps = 1; unsigned long isr_us = 1000000UL / (2 * pps); // 토글이라 2배 if (isr_us < 50) isr_us = 50; // 너무 빠른 값 방지(필요시 조절)
@@ -583,9 +590,9 @@ static inline void motors_enable_all(bool on) // 전체 en
   j1_enable(on);
   j3_enable(on);
   j4_enable(on);
-  pinMode(j2_en, OUTPUT);
-  digitalWrite(j2_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
-                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+  //pinMode(j2_en, OUTPUT);
+  //digitalWrite(j2_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+  //                      : (EN_ACTIVE_LOW ? HIGH : LOW));
 }
 
 void enc_reset_all()

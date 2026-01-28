@@ -75,6 +75,10 @@ bool move_j4(float targetAngle, float tolDeg = 0.3f);
 void enc_reset_j4();
 bool j4_home_stop_on_switch_safe(bool dir_to_switch, unsigned long pps);
 ///////////////////////////////////////////////////////////////////////////////////
+void j1_enable(bool on);
+void j3_enable(bool on);
+void j4_enable(bool on);
+void motors_enable_all(bool on);
 
 void enc_reset_all();          
 #endif

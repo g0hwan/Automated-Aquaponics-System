@@ -15,6 +15,8 @@ void move_j2_cm(float cm, unsigned long pps)
 
 void home()
 {
+  motors_enable_all(true);
+
   //move_j1_wait(90.0f);
   //delay(50);
   j1_home_stop_on_switch(true, 2000);
@@ -48,11 +50,14 @@ void home()
   //move_j4_wait(-15.0f);
   //delay(50);
   enc_reset_all();
+
+  motors_enable_all(false);
 }
 
 
 void goXY(float x, float y)
 {
+  motors_enable_all(true);
   float th1, th2;
 
   bool ok = inverse2R(x, y, L1_mm, L2_mm, /*elbowUp=*/true, th1, th2);
@@ -66,6 +71,8 @@ void goXY(float x, float y)
   move_j3_wait(th2);
   Serial.println(th2);
   Serial.println(th1);
+
+  motors_enable_all(false);
 }
 
 void printXY(float th1_deg, float th2_deg)
