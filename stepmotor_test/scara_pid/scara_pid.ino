@@ -12,7 +12,7 @@ void setup() {
 }
 
 void loop() {
-  //delay(5000);
+  delay(5000);
   //goXY(0,80);
   //move_j3_wait(90);
   //delay(500);
@@ -25,11 +25,12 @@ void loop() {
   //j3_home_stop_on_switch(true, 3000);
   //move_j3_wait(20);
   //delay(1000);
-  //move_j3_wait(-90);
+  //move_j1_wait(200);
   home();
   delay(500);
-  //goXY(0,80);
-  goXY(80,80); //(-80, 80)
+  goXY(-80,-80);
+  delay(1000);
+  goXY(-120,80); //(-80, 80)
   //goXY(-80,-80); // (-80, -80)
 
   //printXY(90,180);

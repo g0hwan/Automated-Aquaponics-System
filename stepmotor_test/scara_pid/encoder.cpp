@@ -455,7 +455,7 @@ static float j4_error_deg(float targetAngle) //현재 오차값 저장하는 함
 void move_j4_wait(float targetAngle,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 8000) //연속동작 가능
+                  unsigned long timeout_ms = 2000) //연속동작 가능
 {
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
