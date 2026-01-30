@@ -4,7 +4,7 @@
 
 const float cpr    = 400.0f;
 const float en_cnt = cpr * 2.0f;
-const int j3_gear = 9;
+const int j3_gear = 16;
 const int j1_gear = 20;
 volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
@@ -27,6 +27,17 @@ const long PULSES_PER_REV = 3200;  // (가정) 1.8°모터 + 128분주
 float J2_LEAD_MM_PER_REV = (8.0f/1.0f);
 unsigned long J2_DEFAULT_PPS =500000;   // j2 기본 속도
 volatile bool j2_endstop_hit = false;
+
+constexpr bool EN_ACTIVE_LOW = false; // 모터enable
+
+//리니어 레일
+constexpr bool RAIL_EN_ACTIVE_LOW = false;
+static volatile bool  rail_run = false;
+static volatile bool  rail_step_state = false;   // 토글 상태
+static volatile long  rail_step_edges = 0;       // 상승엣지 카운트 = step 수
+static volatile long  rail_target_steps = 0;     // 0이면 무한
+static volatile bool  rail_done = false;
+
 
 float encoder_getAngleDeg(const encod* e) {
   return -(e->pos) * 360.0f / en_cnt;
@@ -68,7 +79,7 @@ void j1EncoderA() {//엔코더 읽기
   j1_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j1(float targetAngle, float tolDeg = 1.0f)
+bool move_j1(float targetAngle, float tolDeg = 0.3f)
 {
   float Angle = j1_gear * targetAngle;
 
@@ -135,6 +146,8 @@ void move_j1_wait(float targetAngle,
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
 
+  motors_enable_all(true);
+
   while (true) {
     move_j1(targetAngle);                 
 
@@ -153,6 +166,7 @@ void move_j1_wait(float targetAngle,
   // 정지(필요하면)
   j1_run = false;
   digitalWrite(j1_pul, LOW);
+  motors_enable_all(false);
 }
 
 static void j1_set_pps(unsigned long pps) {
@@ -236,7 +250,7 @@ void j3EncoderA() {
   j3_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j3(float targetAngle, float tolDeg = 1.0f)
+bool move_j3(float targetAngle, float tolDeg = 0.1f)
 {
   float Angle = j3_gear * targetAngle;
 
@@ -255,7 +269,7 @@ bool move_j3(float targetAngle, float tolDeg = 1.0f)
 
   float speed = fabs(pidOut);
   if (speed < 1) speed = 1;
-  if (speed > 4000) speed = 4000;
+  if (speed > 5000) speed = 5000;
 
   long interval = 1000000L / (2.0f * speed);
 
@@ -303,6 +317,8 @@ void move_j3_wait(float targetAngle,
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
 
+  motors_enable_all(true);
+
   while (true) {
     move_j3(targetAngle);                 
 
@@ -321,6 +337,8 @@ void move_j3_wait(float targetAngle,
   // 정지(필요하면)
   j3_run = false;
   digitalWrite(j3_pul, LOW);
+
+  motors_enable_all(false);
 }
 static void j3_set_pps(unsigned long pps) {
   if (pps < 1) pps = 1;
@@ -376,7 +394,7 @@ void j4EncoderA() {
   j4_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j4(float targetAngle, float tolDeg = 1.0f)
+bool move_j4(float targetAngle, float tolDeg = 0.3f)
 {
   float Angle = 4.5 * targetAngle;
 
@@ -437,10 +455,12 @@ static float j4_error_deg(float targetAngle) //현재 오차값 저장하는 함
 void move_j4_wait(float targetAngle,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 8000) //연속동작 가능
+                  unsigned long timeout_ms = 2000) //연속동작 가능
 {
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
+
+  motors_enable_all(true);
 
   while (true) {
     move_j4(targetAngle);                 
@@ -460,12 +480,10 @@ void move_j4_wait(float targetAngle,
   // 정지(필요하면)
   j4_run = false;
   digitalWrite(j4_pul, LOW);
+
+  motors_enable_all(false);
 }
 // 필요하면 네 enable 핀에 맞게 수정 (TB6600: ENA-LOW enable인 경우 많음)
-static inline void j4_enable(bool on){
-  // pinMode(j4_en, OUTPUT);
-  // digitalWrite(j4_en, on ? LOW : HIGH);
-}
 
 static void j4_set_pps(unsigned long pps) { 
   if (pps < 1) pps = 1; unsigned long isr_us = 1000000UL / (2 * pps); // 토글이라 2배 if (isr_us < 50) isr_us = 50; // 너무 빠른 값 방지(필요시 조절)
@@ -557,6 +575,233 @@ void enc_reset_j4()
 }
 ////////////////////////////////////////////////////////////////////////////////
 
+// 스텝모터 enable
+static inline void j1_enable(bool on)
+{
+  pinMode(j1_en, OUTPUT);
+  digitalWrite(j1_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void j3_enable(bool on)
+{
+  pinMode(j3_en, OUTPUT);
+  digitalWrite(j3_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void j4_enable(bool on)
+{
+  pinMode(j4_en, OUTPUT);
+  digitalWrite(j4_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+                        : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+static inline void motors_enable_all(bool on) // 전체 en
+{
+  j1_enable(on);
+  j3_enable(on);
+  j4_enable(on);
+  //pinMode(j2_en, OUTPUT);
+  //digitalWrite(j2_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
+  //                      : (EN_ACTIVE_LOW ? HIGH : LOW));
+}
+////////////////////////////////////////////////////////////////////////////
+
+//리니어 레일 구동 함수/////////////////////////////////////////////////////
+// ================== EN 제어 ==================
+static inline void rail_enable(bool on)
+{
+  pinMode(rail_en, OUTPUT);
+  digitalWrite(rail_en, on ? (RAIL_EN_ACTIVE_LOW ? LOW : HIGH)
+                          : (RAIL_EN_ACTIVE_LOW ? HIGH : LOW));
+}
+
+// ================== 엔드스탑 읽기 ==================
+// stop_rail: INPUT_PULLUP 가정, 눌리면 LOW
+static inline bool rail_stop_pressed()
+{
+  return (digitalRead(stop_rail) == LOW);
+}
+
+// ================== Timer3 ISR ==================
+static void rail_isr_step()
+{
+  if (!rail_run) {
+    digitalWrite(rail_pul, LOW);
+    rail_step_state = false;
+    return;
+  }
+
+  digitalWrite(rail_pul, rail_step_state);
+
+  // 상승엣지에서 step 1개 카운트
+  if (rail_step_state == HIGH) {
+    rail_step_edges++;
+
+    // 목표 step 이동 완료
+    if (rail_target_steps > 0 && rail_step_edges >= rail_target_steps) {
+      rail_run = false;
+      rail_done = true;
+      digitalWrite(rail_pul, LOW);
+      rail_step_state = false;
+      return;
+    }
+
+    // 엔드스탑에 닿으면 즉시 정지(홈 방향에서만 쓰는 것이 안전)
+    if (rail_stop_pressed()) {
+      rail_run = false;
+      rail_done = true;
+      digitalWrite(rail_pul, LOW);
+      rail_step_state = false;
+      return;
+    }
+  }
+
+  rail_step_state = !rail_step_state;
+}
+
+// ================== 초기화 ==================
+static inline void rail_begin_timer3()
+{
+  pinMode(rail_pul, OUTPUT);
+  pinMode(rail_dir, OUTPUT);
+  pinMode(stop_rail, INPUT_PULLUP);
+
+  digitalWrite(rail_pul, LOW);
+
+  // Timer3 기본 세팅
+  Timer3.initialize(100);           // 임시
+  Timer3.attachInterrupt(rail_isr_step);
+
+  rail_run = false;
+  rail_done = false;
+  rail_step_edges = 0;
+  rail_target_steps = 0;
+
+  // 필요하면 기본 enable
+  // rail_enable(true);
+}
+
+// ================== 속도 설정 (pps) ==================
+static inline void rail_set_speed_pps(unsigned long pps)
+{
+  if (pps < 1) pps = 1;
+
+  // 토글 기반 => ISR 주기 = 1 / (2*pps)
+  unsigned long isr_us = 1000000UL / (2UL * pps);
+
+  // 너무 빠른 값 방지(보드/라이브러리 여유)
+  if (isr_us < 50) isr_us = 50;
+
+  noInterrupts();
+  Timer3.setPeriod(isr_us);
+  interrupts();
+}
+
+// ================== 구동 시작(무한) ==================
+static inline void rail_start(bool dir_toward_home, unsigned long pps)
+{
+  rail_enable(true);
+  digitalWrite(rail_dir, dir_toward_home ? HIGH : LOW);
+
+  noInterrupts();
+  rail_step_edges = 0;
+  rail_target_steps = 0; // 무한
+  rail_done = false;
+  rail_run = true;
+  interrupts();
+
+  rail_set_speed_pps(pps);
+}
+
+// ================== step 수만큼 이동 ==================
+static inline void rail_move_steps(long steps, bool dir, unsigned long pps)
+{
+  if (steps <= 0) return;
+
+  rail_enable(true);
+  digitalWrite(rail_dir, dir ? HIGH : LOW);
+
+  noInterrupts();
+  rail_step_edges = 0;
+  rail_target_steps = steps;
+  rail_done = false;
+  rail_run = true;
+  interrupts();
+
+  rail_set_speed_pps(pps);
+}
+
+// ================== 정지 ==================
+static inline void rail_stop(bool disable_after = false)
+{
+  noInterrupts();
+  rail_run = false;
+  interrupts();
+
+  digitalWrite(rail_pul, LOW);
+  rail_step_state = false;
+
+  if (disable_after) rail_enable(false);
+}
+
+// ================== 완료 대기 ==================
+static inline bool rail_wait_done(unsigned long timeout_ms = 0)
+{
+  unsigned long t0 = millis();
+  while (true) {
+    noInterrupts();
+    bool done = rail_done;
+    interrupts();
+
+    if (done) return true;
+
+    if (timeout_ms > 0 && (millis() - t0) > timeout_ms) return false;
+    delay(1);
+  }
+}
+
+// ================== 안전 홈: 스위치까지 접근 + 백오프 ==================
+// dir_to_switch: true면 스위치쪽 방향
+// backoff_steps: 스위치 눌린 뒤 풀기 위해 뒤로 빼는 step 수
+static inline bool rail_home_to_switch(bool dir_to_switch,
+                                      unsigned long pps,
+                                      long backoff_steps = 200,
+                                      unsigned long timeout_ms = 5000)
+{
+  rail_enable(true);
+  pinMode(stop_rail, INPUT_PULLUP);
+
+  // 0) 이미 눌려있으면 backoff부터
+  if (rail_stop_pressed()) {
+    rail_move_steps(backoff_steps, !dir_to_switch, pps);
+    if (!rail_wait_done(1000)) { rail_stop(); return false; }
+    delay(50);
+  }
+
+  // 1) 스위치까지 접근(엔드스탑 감시는 ISR에서 처리)
+  rail_start(dir_to_switch, pps);
+
+  unsigned long t0 = millis();
+  while (true) {
+    if (rail_stop_pressed()) break;
+    if (millis() - t0 > timeout_ms) {
+      rail_stop();
+      return false;
+    }
+    delay(1);
+  }
+
+  // ISR이 stop 처리하기 전에 여기서도 안전 정지
+  rail_stop(false);
+  delay(50);
+
+  // 2) backoff (스위치 해제)
+  rail_move_steps(backoff_steps, !dir_to_switch, pps);
+  if (!rail_wait_done(2000)) { rail_stop(); return false; }
+
+  rail_stop(false);
+  return true;
+}
+////////////////////////////////////////////////////////////////////////////
 
 void enc_reset_all()
 {
@@ -566,9 +811,3 @@ void enc_reset_all()
   j4_enc.pos = 0;
   interrupts();
 }
-
-
-
-
-
-

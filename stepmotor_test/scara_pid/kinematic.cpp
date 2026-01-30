@@ -40,7 +40,7 @@ bool inverse2R(float x_mm, float y_mm, float L1_mm, float L2_mm,
 
   th1_deg = th1 * RAD_TO_DEG;
   th2_deg = th2 * RAD_TO_DEG;
-  th2_deg = -th2_deg;
+  //th2_deg = -th2_deg;
   
   return true;
 }

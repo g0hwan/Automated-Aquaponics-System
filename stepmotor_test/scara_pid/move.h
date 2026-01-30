@@ -13,4 +13,5 @@ void home();
 void goXY(float x, float y);
 void printXY(float th1_deg, float th2_deg);
 void goXY_keepParallel(float x, float y);
+void tool(bool on);
 #endif

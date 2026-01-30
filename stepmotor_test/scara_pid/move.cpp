@@ -15,14 +15,16 @@ void move_j2_cm(float cm, unsigned long pps)
 
 void home()
 {
+  motors_enable_all(true);
+
   //move_j1_wait(90.0f);
   //delay(50);
   j1_home_stop_on_switch(true, 2000);
   delay(500);
   enc_reset_j1();
   //delay(50);
-  move_j1_wait(-180.0f);
-  delay(50);
+  //move_j1_wait(-180.0f);
+  //delay(50);
 
   bool ok = move_j2(7200.0f, 600000);
 
@@ -31,26 +33,31 @@ void home()
   }
   move_j2_cm(-5.0f);
 
-  move_j3_wait(200);
+  //move_j3_wait(200);
   delay(50);
   j3_home_stop_on_switch(true, 3000);
   delay(500);
   enc_reset_j3();
-  move_j3_wait(-20.0f);
-  delay(50);
+  delay(500);
+  //move_j3_wait(-25.0f);
+  move_j3_wait(175.0f);
+  delay(500);
 
   //move_j4_wait(20);
   //delay(50);
   j4_home_stop_on_switch_safe(true, 2000);
   delay(500);
-  enc_reset_j4();
   //move_j4_wait(-15.0f);
   //delay(50);
+  enc_reset_all();
+
+  motors_enable_all(false);
 }
 
 
 void goXY(float x, float y)
 {
+  motors_enable_all(true);
   float th1, th2;
 
   bool ok = inverse2R(x, y, L1_mm, L2_mm, /*elbowUp=*/true, th1, th2);
@@ -63,6 +70,9 @@ void goXY(float x, float y)
   move_j1_wait(th1);
   move_j3_wait(th2);
   Serial.println(th2);
+  Serial.println(th1);
+
+  motors_enable_all(false);
 }
 
 void printXY(float th1_deg, float th2_deg)
@@ -85,3 +95,19 @@ void goXY_keepParallel(float x, float y)
   move_j4_wait(wrist_deg);   // 너 프로젝트에 j4가 있다면
 }
 
+void tool(bool on)
+{
+  if (on)
+  {
+    digitalWrite(num1, HIGH);
+    digitalWrite(num2, HIGH);
+    digitalWrite(num3, HIGH);
+  }
+  else 
+  {
+    digitalWrite(num1, LOW);
+    digitalWrite(num2, LOW);
+    digitalWrite(num3, LOW);
+  }
+
+}

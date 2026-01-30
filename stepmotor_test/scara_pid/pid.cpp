@@ -2,7 +2,7 @@
 
 PID   j1_pid = { 15.0f, 0.0f, 12.0f, 0.0f, 0.0f, 5000.0f };
 //PID   j2_pid = { 30.0f, 0.0f, 20.0f, 0.0f, 0.0f, 5000.0f };
-PID   j3_pid = { 20.0f, 0.0f, 3.0f, 0.0f, 0.0f, 5000.0f };
+PID   j3_pid = { 30.0f, 0.0f, 10.0f, 0.0f, 0.0f, 5000.0f };
 PID   j4_pid = { 15.0f, 0.0f, 12.0f, 0.0f, 0.0f, 5000.0f };
 
 float pid_update(PID *p, float error) {
