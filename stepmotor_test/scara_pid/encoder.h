@@ -80,5 +80,8 @@ void j3_enable(bool on);
 void j4_enable(bool on);
 void motors_enable_all(bool on);
 
-void enc_reset_all();          
+void enc_reset_all();
+
+float j1_getJointDeg();
+float j3_getJointDeg();
 #endif

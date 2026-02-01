@@ -108,7 +108,6 @@ bool move_j1(float targetAngle, float tolDeg = 0.3f)
   interrupts();
 
   digitalWrite(j1_dir, (pidOut > 0) ? LOW : HIGH);
-
   //Serial.print("Angle="); Serial.print(nowAngle);
   //Serial.print(" Error="); Serial.print(error);
   //Serial.print(" speed="); Serial.print(speed);
@@ -603,6 +602,8 @@ static inline void motors_enable_all(bool on) // 전체 en
   //digitalWrite(j2_en, on ? (EN_ACTIVE_LOW ? LOW : HIGH)
   //                      : (EN_ACTIVE_LOW ? HIGH : LOW));
 }
+
+
 ////////////////////////////////////////////////////////////////////////////
 
 //리니어 레일 구동 함수/////////////////////////////////////////////////////
@@ -802,6 +803,35 @@ static inline bool rail_home_to_switch(bool dir_to_switch,
   return true;
 }
 ////////////////////////////////////////////////////////////////////////////
+
+//========조인트 값 받기=================================================
+
+float j1_getJointDeg()
+{
+  noInterrupts();
+  long c = j1_enc.pos;
+  interrupts();
+
+  encod snap = j1_enc;
+  snap.pos = c;
+
+  float motor_deg = encoder_getAngleDeg(&snap); // 모터축 각도(기존 로직)
+  return motor_deg / (float)j1_gear;            // 조인트각 = 모터각 / 기어비
+}
+
+float j3_getJointDeg()
+{
+  noInterrupts();
+  long c = j3_enc.pos;
+  interrupts();
+
+  encod snap = j3_enc;
+  snap.pos = c;
+
+  float motor_deg = encoder_getAngleDeg(&snap);
+  return motor_deg / (float)j3_gear;
+}
+//===========================================================================
 
 void enc_reset_all()
 {
