@@ -30,13 +30,13 @@
 #define stop_j3 50
 
 //엔드이펙터 회전
-#define j4_pul  16
+#define j4_pul  7
 #define j4_dir  17
 #define j4_en   23
-#define j4_A    20
+#define j4_A    2
 #define j4_B    24
 #define j4_Z    25
-#define stop_j4 48
+#define stop_j4 48 // == 53으로 돼 있음
 
 //리니어 레일
 #define rail_pul  41

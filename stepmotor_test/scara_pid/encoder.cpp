@@ -108,10 +108,10 @@ bool move_j1(float targetAngle, float tolDeg = 0.3f)
   interrupts();
 
   digitalWrite(j1_dir, (pidOut > 0) ? LOW : HIGH);
-  //Serial.print("Angle="); Serial.print(nowAngle);
-  //Serial.print(" Error="); Serial.print(error);
-  //Serial.print(" speed="); Serial.print(speed);
-  //Serial.print(" interval(us)="); Serial.println(interval);
+  Serial.print("Angle="); Serial.print(nowAngle);
+  Serial.print(" Error="); Serial.print(error);
+  Serial.print(" speed="); Serial.print(speed);
+  Serial.print(" interval(us)="); Serial.println(interval);
 
   if (fabs(error) <= j1_gear * tolDeg) {
     j1_run = false;              
@@ -282,6 +282,7 @@ bool move_j3(float targetAngle, float tolDeg = 0.1f)
   Serial.print("Angle="); Serial.print(nowAngle);
   Serial.print(" Error="); Serial.print(error);
   Serial.print(" speed="); Serial.print(speed);
+  Serial.print(stop_j3);
   Serial.print(" interval(us)="); Serial.println(interval);
 
   if (fabs(error) <= j3_gear*tolDeg) {
@@ -423,10 +424,10 @@ bool move_j4(float targetAngle, float tolDeg = 0.3f)
 
   digitalWrite(j4_dir, (pidOut > 0) ? LOW : HIGH);
 
-  //Serial.print("Angle="); Serial.print(nowAngle);
-  //Serial.print(" Error="); Serial.print(error);
-  //Serial.print(" speed="); Serial.print(speed);
-  //Serial.print(" interval(us)="); Serial.println(interval);
+  Serial.print("Angle="); Serial.print(nowAngle);
+  Serial.print(" Error="); Serial.print(error);
+  Serial.print(" speed="); Serial.print(speed);
+  Serial.print(" interval(us)="); Serial.println(interval);
   
   if (fabs(error) <= 4.5*tolDeg) {
     j4_run = false;              
@@ -454,7 +455,7 @@ static float j4_error_deg(float targetAngle) //현재 오차값 저장하는 함
 void move_j4_wait(float targetAngle,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 2000) //연속동작 가능
+                  unsigned long timeout_ms = 8000) //연속동작 가능
 {
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;

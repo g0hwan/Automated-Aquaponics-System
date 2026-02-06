@@ -69,7 +69,7 @@ void j4EncoderA();
 void move_j4_wait(float targetAngle,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 2000);
+                  unsigned long timeout_ms = 8000);
 
 bool move_j4(float targetAngle, float tolDeg = 0.3f);
 void enc_reset_j4();

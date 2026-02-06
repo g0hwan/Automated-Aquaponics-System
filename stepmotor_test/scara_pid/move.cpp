@@ -3,14 +3,14 @@
 void move_j2_mm(float mm, unsigned long pps)
 {
   // mm -> 회전수 -> deg
-  float deg = (mm / J2_LEAD_MM_PER_REV) * 360.0f;
+  float deg = (-mm / J2_LEAD_MM_PER_REV) * 360.0f;
   move_j2(deg, pps);   // 기존 함수 그대로 활용
 }
 
 // cm 단위 이동
 void move_j2_cm(float cm, unsigned long pps)
 {
-  move_j2_mm(cm * 10.0f, pps);
+  move_j2_mm(cm * - 10.0f, pps);
 }
 
 void home()
@@ -20,6 +20,7 @@ void home()
   j1_home_stop_on_switch(true, 2000);
   delay(500);
   enc_reset_j1();
+  Serial.println("j1 end");
 
   bool ok = move_j2(7200.0f, 600000);
 
@@ -27,9 +28,8 @@ void home()
     move_j2_mm(-10.0f);
   }
   move_j2_cm(-5.0f);
+  Serial.println("j2 end"); 
 
-  //move_j3_wait(200);
-  delay(50);
   j3_home_stop_on_switch(true, 3000);
   delay(500);
   enc_reset_j3();
@@ -37,15 +37,17 @@ void home()
   //move_j3_wait(-25.0f);
   move_j3_wait(175.0f);
   delay(500);
+  Serial.println("j3 end");
 
   //move_j4_wait(20);
   //delay(50);
   j4_home_stop_on_switch_safe(true, 2000);
   delay(500);
-  //move_j4_wait(-15.0f);
-  //delay(50);
+  move_j4_wait(-15.0f);
+  delay(50);
+  Serial.println("j4 end");
   enc_reset_all();
-
+  
   motors_enable_all(false);
 }
 

@@ -12,9 +12,10 @@ void setup() {
 }
 
 void loop() {
+  Serial.println(digitalRead(stop_z)); // 안누르면 1, 누르면 0 이 나오면 정상
   delay(5000);
   //goXY(0,80);
-  //move_j3_wait(90);
+  //move_j1_wait(10);
   //delay(500);
   //move_j3_wait(90); 
   //move_j4_wait(-30); 
@@ -23,23 +24,31 @@ void loop() {
   //delay(100);
   //move_j3_wait(90);
   //j3_home_stop_on_switch(true, 3000);
-  //move_j3_wait(20);
+  //j4_home_stop_on_switch_safe(true, 2000);
+  //move_j1_wait(120);
   //delay(1000);
   //move_j1_wait(200);
   home();
   delay(500);
-  goXY(-80,-80);
-  delay(1000);
-  goXY(-120,80); //(-80, 80)
+  goXY(150,100);
+  delay(500);
+  //goXY_keepParallel(80,0);
+  ///delay(300);
+  //goXY_keepParallel(10,0);
+  //delay(300);
+  //goXY(-120,80); //(-80, 80)
   //goXY(-80,-80); // (-80, -80)
-
+  //tool(true);
+  //delay(3000);
+  //tool(false);
+  //delay(3000);
   //printXY(90,180);
 
   //delay(3000);
   //move_j1_wait(200);
   //delay(500);
 
-  //Serial.print("stop_j4="); Serial.println(digitalRead(stop_j4));
+  //Serial.print("stop_j4="); Serial.println(digitalRead(stop_z));
   //j4_home_stop_on_switch_safe(true, 1000);
   //delay(500);
   //move_j1_wait(-180);
@@ -56,8 +65,12 @@ void loop() {
   //goXY(0,80); //(340, 0)
   //goXY(80,0); //(100,-340)
   //move_j3_wait(7200,5000);
-  delay(100000000);
-  //move_j2_cm(-5.0f);
-  //Serial.println(digitalRead(stop_j3)); // 안누르면 1, 누르면 0 이 나오면 정상
+  //move_j2_cm(5.0f);
+  moveXY_rel(0,10);
+  delay(1000);
+  moveXY_rel(0,10);
+  delay(1000);
+  moveXY_rel(0,10);
+  delay(100000000);  
   //delay(200);
 }
