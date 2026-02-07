@@ -6,6 +6,7 @@ const float cpr    = 400.0f;
 const float en_cnt = cpr * 2.0f;
 const int j3_gear = 16;
 const int j1_gear = 20;
+const float j4_gear = 4.5;
 volatile bool j1_run=false, j2_run=false, j3_run=false, j4_run=false;
 static volatile bool j1_ps=false, j2_ps=false, j3_ps=false, j4_ps=false;
 
@@ -23,7 +24,7 @@ volatile long j4pulseInterval = 100;
 
 // z축 
 const unsigned int PULSE_US = 10;   // 펄스폭은 넉넉히
-const long PULSES_PER_REV = 3200;  // (가정) 1.8°모터 + 128분주
+const long PULSES_PER_REV = 1600;  // (가정) 1.8°모터 + 128분주
 float J2_LEAD_MM_PER_REV = (8.0f/1.0f);
 unsigned long J2_DEFAULT_PPS =500000;   // j2 기본 속도
 volatile bool j2_endstop_hit = false;
@@ -268,7 +269,7 @@ bool move_j3(float targetAngle, float tolDeg = 0.1f)
 
   float speed = fabs(pidOut);
   if (speed < 1) speed = 1;
-  if (speed > 5000) speed = 5000;
+  if (speed > 5500) speed = 5500;
 
   long interval = 1000000L / (2.0f * speed);
 
@@ -279,12 +280,13 @@ bool move_j3(float targetAngle, float tolDeg = 0.1f)
 
   digitalWrite(j3_dir, (pidOut > 0) ? LOW : HIGH);
 
+/*
   Serial.print("Angle="); Serial.print(nowAngle);
   Serial.print(" Error="); Serial.print(error);
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(stop_j3);
   Serial.print(" interval(us)="); Serial.println(interval);
-
+*/
   if (fabs(error) <= j3_gear*tolDeg) {
     j3_run = false;              
     digitalWrite(j3_pul, LOW);   
@@ -349,22 +351,38 @@ static void j3_set_pps(unsigned long pps) {
   interrupts();
   j3_run = true;
 }
-void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
+
+// stop 핀에서 LOW가 stable_ms 동안 "연속" 유지될 때만 true
+static bool waitStableLow(uint8_t pin, unsigned long stable_ms)
 {
-  pinMode(stop_j3, INPUT_PULLUP);
-  delay(500);
+  unsigned long t_start = millis();
 
-  digitalWrite(j3_dir, dir_to_switch ? HIGH : LOW);
-  j3_set_pps(pps);
-  j3_run = true;
+  while (millis() - t_start < stable_ms) {
+    if (digitalRead(pin) != LOW) {
+      // 중간에 HIGH가 한번이라도 나오면 다시 처음부터
+      t_start = millis();
+    }
+    delay(1); // 1ms 샘플링(너무 빡세게 돌리면 오히려 노이즈에 취약)
+  }
+  return true;
+}
 
-  // 스위치 눌릴 때까지 계속 구동
-  while (digitalRead(stop_j3) != LOW) {  }
+// stop 핀에서 HIGH가 stable_ms 동안 연속 유지될 때 true (눌림 해제 확인용)
+static bool waitStableHigh(uint8_t pin, unsigned long stable_ms, unsigned long timeout_ms = 1000)
+{
+  unsigned long t0 = millis();
+  unsigned long t_start = millis();
 
-  // 눌리면 정지
-  
-  j3_run = false;
-  digitalWrite(j3_pul, LOW);
+  while (true) {
+    if (digitalRead(pin) == HIGH) {
+      if (millis() - t_start >= stable_ms) return true;
+    } else {
+      t_start = millis();
+    }
+
+    if (millis() - t0 > timeout_ms) return false;
+    delay(1);
+  }
 }
 void enc_reset_j3()
 {
@@ -372,6 +390,81 @@ void enc_reset_j3()
   j3_enc.pos = 0;
   interrupts();
 }
+void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
+{
+  pinMode(stop_j3, INPUT_PULLUP);
+  delay(20);
+
+  // (선택) enable 먼저
+  motors_enable_all(true);
+
+  auto setDirToward = [&](bool toward){
+    digitalWrite(j3_dir, toward ? HIGH : LOW);   // 네 하드웨어 방향에 맞게 유지
+  };
+
+  // 0) 시작부터 LOW(눌림)면: 오입력/눌림 상태일 수 있으니 백오프 후 해제 확인
+  if (digitalRead(stop_j3) == LOW) {
+    setDirToward(!dir_to_switch);  // 스위치 반대 방향으로 잠깐 이동
+    j3_set_pps(pps);
+    j3_run = true;
+
+    // 짧게 일정 시간만 빼기(예: 200ms)
+    unsigned long t0 = millis();
+    while (millis() - t0 < 200) { delay(1); }
+
+    j3_run = false;
+    digitalWrite(j3_pul, LOW);
+
+    // 해제가 "안정적으로" 되었는지 확인
+    waitStableHigh(stop_j3, 20, 1000);
+    delay(30);
+  }
+
+  // 1) 스위치 방향으로 접근
+  setDirToward(dir_to_switch);
+  j3_set_pps(pps);
+  j3_run = true;
+
+  unsigned long t0 = millis();
+  const unsigned long TIMEOUT_MS = 5000;   // 상황에 맞게
+  const unsigned long STABLE_LOW_MS = 20;  // 10~30ms 권장(선 길면 20ms부터)
+
+  while (true) {
+    // timeout
+    if (millis() - t0 > TIMEOUT_MS) {
+      j3_run = false;
+      digitalWrite(j3_pul, LOW);
+      motors_enable_all(false);
+      return;
+    }
+
+    // "진짜 눌림" 판정: LOW가 연속 STABLE_LOW_MS 유지될 때만 break
+    if (digitalRead(stop_j3) == LOW) {
+      waitStableLow(stop_j3, STABLE_LOW_MS);
+      break;
+    }
+
+    delay(1);
+  }
+
+  // 2) 정지
+  j3_run = false;
+  digitalWrite(j3_pul, LOW);
+
+  // (선택) 살짝 backoff해서 스위치 해제 위치 확보
+  setDirToward(!dir_to_switch);
+  j3_set_pps(pps);
+  j3_run = true;
+
+  unsigned long t1 = millis();
+  while (millis() - t1 < 150) { delay(1); }  // 100~300ms 정도로 조절
+
+  j3_run = false;
+  digitalWrite(j3_pul, LOW);
+
+  motors_enable_all(false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 //관절 4에 대한 함수들//////////////////////////////////////////////////////////////////////
@@ -396,7 +489,7 @@ void j4EncoderA() {
 
 bool move_j4(float targetAngle, float tolDeg = 0.3f)
 {
-  float Angle = 4.5 * targetAngle;
+  float Angle = j4_gear * targetAngle;
 
   j4_run = true;            
   
@@ -423,13 +516,13 @@ bool move_j4(float targetAngle, float tolDeg = 0.3f)
   interrupts();
 
   digitalWrite(j4_dir, (pidOut > 0) ? LOW : HIGH);
-
+/*
   Serial.print("Angle="); Serial.print(nowAngle);
   Serial.print(" Error="); Serial.print(error);
   Serial.print(" speed="); Serial.print(speed);
   Serial.print(" interval(us)="); Serial.println(interval);
-  
-  if (fabs(error) <= 4.5*tolDeg) {
+*/
+  if (fabs(error) <= j4_gear*tolDeg) {
     j4_run = false;              
     digitalWrite(j4_pul, LOW);   
     return true;                 
@@ -449,7 +542,7 @@ static float j4_now_deg() // 현재 각도값 저장하는 함수
 
 static float j4_error_deg(float targetAngle) //현재 오차값 저장하는 함수
 {
-  return (4.5f * targetAngle) + j4_now_deg();
+  return (j4_gear * targetAngle) + j4_now_deg();
 } 
 
 void move_j4_wait(float targetAngle,
@@ -466,7 +559,7 @@ void move_j4_wait(float targetAngle,
     move_j4(targetAngle);                 
 
     float e = j4_error_deg(targetAngle);
-    if (fabs(e) <= 4.5*tolDeg) {
+    if (fabs(e) <= j4_gear*tolDeg) {
       if (inTolSince == 0) inTolSince = millis();
       if (millis() - inTolSince >= stable_ms) break;
     } else {
@@ -831,6 +924,19 @@ float j3_getJointDeg()
 
   float motor_deg = encoder_getAngleDeg(&snap);
   return motor_deg / (float)j3_gear;
+}
+
+float j4_getJointDeg()
+{
+  noInterrupts();
+  long c = j4_enc.pos;
+  interrupts();
+
+  encod snap = j4_enc;
+  snap.pos = c;
+
+  float motor_deg = encoder_getAngleDeg(&snap); // 모터축 각도(기존 로직)
+  return motor_deg / (float)j4_gear;            // 조인트각 = 모터각 / 기어비
 }
 //===========================================================================
 

@@ -62,6 +62,8 @@ void move_j3_wait(float targetAngle,
                   unsigned long stable_ms = 150,
                   unsigned long timeout_ms = 8000);
 void enc_reset_j3();
+bool waitStableLow(uint8_t pin, unsigned long stable_ms);
+static bool waitStableHigh(uint8_t pin, unsigned long stable_ms, unsigned long timeout_ms = 1000);
 void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps);
 ///////////////////////////////////////////////////////////////////////////////////
 void j4stepPulse();
@@ -84,4 +86,5 @@ void enc_reset_all();
 
 float j1_getJointDeg();
 float j3_getJointDeg();
+float j4_getJointDeg();
 #endif

@@ -32,7 +32,7 @@
 //엔드이펙터 회전
 #define j4_pul  7
 #define j4_dir  17
-#define j4_en   23
+#define j4_en   31
 #define j4_A    2
 #define j4_B    24
 #define j4_Z    25

@@ -30,7 +30,7 @@ void home()
   move_j2_cm(-5.0f);
   Serial.println("j2 end"); 
 
-  j3_home_stop_on_switch(true, 3000);
+  j3_home_stop_on_switch(true, 5000);
   delay(500);
   enc_reset_j3();
   delay(500);
@@ -39,8 +39,6 @@ void home()
   delay(500);
   Serial.println("j3 end");
 
-  //move_j4_wait(20);
-  //delay(50);
   j4_home_stop_on_switch_safe(true, 2000);
   delay(500);
   move_j4_wait(-15.0f);
@@ -55,22 +53,25 @@ void home()
 void goXY(float x, float y)
 {
   motors_enable_all(true);
-  float th1, th2;
 
-  bool ok = inverse2R(x, y, L1_mm, L2_mm, /*elbowUp=*/true, th1, th2);
+  // 현재 조인트각 읽기
+  float th1_cur = j1_getJointDeg();
+  float th2_cur = j3_getJointDeg();
+
+  float th1, th2;
+  bool ok = inverse2R_best(x, y, th1_cur, th2_cur, th1, th2);
   if (!ok) {
     Serial.println("[IK] unreachable");
+    motors_enable_all(false);
     return;
   }
 
-  // 이제 조인트각으로 이동
   move_j1_wait(th1);
   move_j3_wait(th2);
-  Serial.println(th2);
-  Serial.println(th1);
 
   motors_enable_all(false);
 }
+
 
 void printXY(float th1_deg, float th2_deg)
 {
@@ -79,41 +80,20 @@ void printXY(float th1_deg, float th2_deg)
   Serial.print("  Y="); Serial.println(p.y_mm);
 }
 
-void goXY_keepParallel(float x, float y)
-{
-  float th1, th2;
-  if (!inverse2R(x, y, L1_mm, L2_mm, true, th1, th2)) return;
-
-  float phi_offset = 0.0f; // 기구 조립 기준에 따라 보정값 필요
-  float wrist_deg = wristPhiParallelX(th1, th2, phi_offset);
-
-  move_j1_wait(th1);
-  move_j3_wait(th2);
-  move_j4_wait(wrist_deg);   // 너 프로젝트에 j4가 있다면
-}
-// move.cpp에 추가
-
 void moveXY_rel(float dx_mm, float dy_mm)
 {
-  // 1) 현재 조인트 각도 읽기
   float th1_cur = j1_getJointDeg();
   float th2_cur = j3_getJointDeg();
 
-  // 2) FK로 현재 TCP 좌표 계산
   Pose2D cur = forward2R(th1_cur, th2_cur, L1_mm, L2_mm);
 
-  // 3) 상대이동 목표 생성
   float x_tgt = cur.x_mm + dx_mm;
   float y_tgt = cur.y_mm + dy_mm;
 
-  // 4) 현재 팔 자세(엘보 업/다운) 유지하도록 옵션 결정(권장)
-  bool elbowUp = (th2_cur < 0.0f);  // inverse2R 구현상 elbowUp이면 th2가 음수로 나오는 편
-
-  // 5) IK -> 이동 (goXY는 elbowUp을 true로 고정이라, 여기서는 직접 풀어주는 게 더 안정적)
   motors_enable_all(true);
 
   float th1_tgt, th2_tgt;
-  if (!inverse2R(x_tgt, y_tgt, L1_mm, L2_mm, elbowUp, th1_tgt, th2_tgt)) {
+  if (!inverse2R_best(x_tgt, y_tgt, th1_cur, th2_cur, th1_tgt, th2_tgt)) {
     Serial.println("[IK] unreachable (rel)");
     motors_enable_all(false);
     return;
@@ -124,6 +104,26 @@ void moveXY_rel(float dx_mm, float dy_mm)
 
   motors_enable_all(false);
 }
+
+void goXY_keepParallel(float x, float y)
+{
+  float th1_cur = j1_getJointDeg();
+  float th2_cur = j3_getJointDeg();
+
+  float th1, th2;
+  if (!inverse2R_best(x, y, th1_cur, th2_cur, th1, th2)) 
+  {
+    motors_enable_all(false);
+    return;
+  }
+  float phi_offset = 0.0f;
+  float wrist_deg = wristPhiParallelX(th1, th2, phi_offset);
+
+  move_j1_wait(th1);
+  move_j3_wait(th2);
+  move_j4_wait(wrist_deg);
+}
+
 
 void tool(bool on) // 엔드이팩터 교체
 {
@@ -140,4 +140,37 @@ void tool(bool on) // 엔드이팩터 교체
     digitalWrite(num3, LOW);
   }
 
+}
+
+//  상대/절대 관절각 이동
+// ---------------------------------------------
+void moveJ_abs(float th1_deg, float th3_deg)
+{
+  move_j1_wait(th1_deg);
+  move_j3_wait(th3_deg);
+}
+
+void moveJ_rel(float dth1_deg, float dth3_deg)
+{
+  float th1_cur = j1_getJointDeg();
+  float th3_cur = j3_getJointDeg();
+
+  moveJ_abs(th1_cur + dth1_deg, th3_cur + dth3_deg);
+}
+
+// j4 포함 버전 (원하면 사용)
+void moveJ_abs4(float th1_deg, float th3_deg, float th4_deg)
+{
+  move_j1_wait(th1_deg);
+  move_j3_wait(th3_deg);
+  move_j4_wait(th4_deg);
+}
+
+void moveJ_rel4(float dth1_deg, float dth3_deg, float dth4_deg)
+{
+  float th1_cur = j1_getJointDeg();
+  float th3_cur = j3_getJointDeg();
+  float th4_cur = j4_getJointDeg();
+
+  moveJ_abs4(th1_cur + dth1_deg, th3_cur + dth3_deg, dth4_deg + th4_cur);
 }
