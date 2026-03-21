@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-
+# cam관련
 PC_IP       = '192.168.0.180'
 STREAM_PORT = 5000
 SERIAL_PORT = '/dev/ttyACM0'
