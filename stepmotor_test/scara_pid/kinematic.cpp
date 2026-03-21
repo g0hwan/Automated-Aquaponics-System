@@ -49,3 +49,32 @@ float wristPhiParallelX(float th1_deg, float th2_deg, float phi_offset_deg) {
   // “그리퍼를 X축과 평행” 같은 조건을 단순화한 형태(필요한 offset은 기구에 맞게)
   return -(th1_deg + th2_deg) + phi_offset_deg;
 }
+
+static inline float sqr(float x) { return x * x; }
+
+bool inverse2R_best(float x, float y,
+                    float th1_cur_deg, float th2_cur_deg,
+                    float& th1_out_deg, float& th2_out_deg)
+{
+  float th1_u, th2_u;
+  float th1_d, th2_d;
+
+  bool ok_u = inverse2R(x, y, L1_mm, L2_mm, /*elbowUp=*/true,  th1_u, th2_u);
+  bool ok_d = inverse2R(x, y, L1_mm, L2_mm, /*elbowUp=*/false, th1_d, th2_d);
+
+  if (!ok_u && !ok_d) return false;
+
+  // 둘 다 가능하면 "현재 자세와 가장 가까운 해"를 선택
+  if (ok_u && ok_d) {
+    float du = sqr(th1_u - th1_cur_deg) + sqr(th2_u - th2_cur_deg);
+    float dd = sqr(th1_d - th1_cur_deg) + sqr(th2_d - th2_cur_deg);
+    if (du <= dd) { th1_out_deg = th1_u; th2_out_deg = th2_u; }
+    else          { th1_out_deg = th1_d; th2_out_deg = th2_d; }
+    return true;
+  }
+
+  // 하나만 가능하면 그 해 사용
+  if (ok_u) { th1_out_deg = th1_u; th2_out_deg = th2_u; return true; }
+  else      { th1_out_deg = th1_d; th2_out_deg = th2_d; return true; }
+}
+

@@ -2,10 +2,13 @@
 #include <TimerThree.h>
 
 // ================== 핀 설정 ==================
-#define rail_pul  43
-#define rail_dir  44
-#define rail_en   45
-#define stop_rail 46
+#define rail_pul  41
+#define rail_dir  42
+#define rail_en   43
+#define stop_rail 44
+#define num1      45
+#define num2      46
+#define num3      47
 
 // EN 논리: 드라이버가 ENA-LOW이면 true, ENA-HIGH이면 false
 constexpr bool RAIL_EN_ACTIVE_LOW = false;
@@ -100,7 +103,7 @@ static inline void rail_set_speed_pps(unsigned long pps)
   unsigned long isr_us = 1000000UL / (2UL * pps);
 
   // 너무 빠른 값 방지(보드/라이브러리 여유)
-  if (isr_us < 50) isr_us = 50;
+  if (isr_us < 20) isr_us = 20;
 
   noInterrupts();
   Timer3.setPeriod(isr_us);
@@ -212,23 +215,46 @@ static inline bool rail_home_to_switch(bool dir_to_switch,   //홈가는 함수
   rail_stop(false);
   return true;
 }
+void tool(bool on)
+{
+  if (on)
+  {
+    digitalWrite(num1, HIGH);
+    digitalWrite(num2, HIGH);
+    digitalWrite(num3, HIGH);
+  }
+  else 
+  {
+    digitalWrite(num1, LOW);
+    digitalWrite(num2, LOW);
+    digitalWrite(num3, LOW);
+  }
 
+}
 void setup() {
   Serial.begin(115200);
   rail_begin_timer3();
-
+  pinMode(num1, OUTPUT);
+  pinMode(num2, OUTPUT);
+  pinMode(num3, OUTPUT);
   // 홈 동작: 스위치 방향이 true라고 가정
-  bool ok = rail_home_to_switch(true, 3000, 300, 6000);
-  Serial.println(ok ? "RAIL HOME OK" : "RAIL HOME FAIL");
+  //bool ok = rail_home_to_switch(true, 3000, 300, 6000);
+  //Serial.println(ok ? "RAIL HOME OK" : "RAIL HOME FAIL");
 
   // 5000 step 이동
-  rail_move_steps(5000, true, 2000);
-  rail_wait_done(5000);
-  rail_stop(true);   // 정지 + disable
+  //rail_move_steps(5000, true, 2000);
+  //rail_wait_done(5000);
+  //ail_stop(true);   // 정지 + disable
 
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
 
+  tool(true);
+  delay(5000);
+  tool(false);
+  delay(5000);
+  // put your main code here, to run repeatedly:
+  //rail_move_steps(90000, 1, 25000);
+  //delay(2000);
 }
