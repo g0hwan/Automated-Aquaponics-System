@@ -84,6 +84,7 @@ class UD:
             win_orig="Original", win_und="Undistorted+ROI"):
         """테스트용: 실시간 창으로 확인"""
         cap = cv2.VideoCapture(self.c.cam, self.c.backend)
+        
         if not cap.isOpened():
             raise RuntimeError(f"카메라 오픈 실패 (index={self.c.cam})")
 
@@ -137,5 +138,5 @@ class UD:
 
 
 if __name__ == "__main__":
-    # 단독 실행 테스트
+    #UD(UDConf(cam=1)).run(show_orig=True, save_key=True)
     UD(UDConf(cam=0)).run(show_orig=True, save_key=True)

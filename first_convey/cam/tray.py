@@ -27,7 +27,7 @@ class TrayConfig:
     # -----------------
     # Calibration / Undistort
     # -----------------
-    calib_path: str | None = "camera_calib.npz"  # None이면 왜곡보정 안 함
+    calib_path: str | None = "camera_calib.npz" # None이면 왜곡보정 안 함
     alpha: float = 1.0        # 0~1 (0: 최대 crop / 1: 최대 시야 유지)
     crop: bool = True         # ROI로 crop
     use_remap: bool = True    # remap이 가장 빠르고 안정적

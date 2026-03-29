@@ -1,16 +1,16 @@
 import cv2
 
-cap = None
-for idx in range(0, 4):
-    tmp = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-    if tmp.isOpened():
-        ret, _ = tmp.read()
+for i in range(5):
+    cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+    if cap.isOpened():
+        ret, frame = cap.read()
         if ret:
-            cap = tmp
-            print("사용할 카메라 인덱스:", idx)
-            break
-    tmp.release()
-
-if cap is None:
-    print("카메라를 찾지 못했습니다. (줌/OBS/카메라 앱 종료 후 재시도)")
-    exit()
+            print(f"camera index {i}: opened")
+            cv2.imshow(f"cam{i}", frame)
+            cv2.waitKey(1000)
+            cv2.destroyAllWindows()
+        else:
+            print(f"camera index {i}: opened but no frame")
+        cap.release()
+    else:
+        print(f"camera index {i}: failed")

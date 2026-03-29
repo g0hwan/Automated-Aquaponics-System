@@ -7,7 +7,7 @@ def main():
         use_dshow=True,
 
         # OpenCR 포트 고정
-        force_port="COM3",
+        force_port="COM20",
         baud=115200,
 
         # 캘리브레이션 파일
