@@ -30,34 +30,6 @@ static void startScaraMotion(void) {
   delay(100);
 }
 
-static void stopScaraMotion(void) {
-  // TODO:
-  // 스카라 정지 코드
-}
-
-static bool isScaraMotionDone(void) {
-  // TODO:
-  // 스카라 완료 조건
-  // 예시용 false
-  return false;
-}
-
-static void startCartesianReset(void) {
-  // TODO:
-  // 직교로봇 초기화 시작 코드
-}
-
-static void stopCartesianReset(void) {
-  // TODO:
-  // 직교로봇 초기화 해제 코드
-}
-
-static bool isCartesianResetDone(void) {
-  // TODO:
-  // 직교로봇 리셋 완료 조건
-  return false;
-}
-
 // =========================
 // 섹션 함수
 // =========================
@@ -67,20 +39,69 @@ void sect1(void) {
 
     // 스카라 동작 시작
     startScaraMotion();
-
     // 현재 스카라 움직이는 중
     setSmf(1);
     sendSmf();
   }
+    home();
+  delay(1000);
+  moveRail(3000,0);   
+  delay(900);
+  stopRail();
+  move_j2_cm(-1.2);
+  j1_home_stop_on_switch(true, 4200);
+  delay(50);
+  moveRail_untilStop(true, 4000, stop_rail);
+  moveRail(2000,1);
+  delay(2000);
+  stopRail();
+  enc_reset_j3();
+  move_j3_wait(220);
+  move_j1_wait(30);
+  move_j2_cm(-9);
+  delay(1000);
 
-  // 스카라 완료 확인
-  if (isScaraMotionDone()) {
-    setSmf(0);
-    sendSmf();
+  move_j2_cm(9);
 
-    sect1_started = false;
-    currentPath = PATH_IDLE;
+  move_j1_wait(-40);
+  moveRail_untilStop(false, 4000, stop_rail);
+  moveRail(3000,0);
+  delay(700);
+  stopRail();
+  delay(100);
+  moveRail_untilStop(true, 3000, stop_rail);
+  delay(50);
+  moveRail(3000,0);   
+  delay(1800);
+  stopRail();
+  
+  setCrf(1);
+  sendCrf();
+  
+  move_j2_cm(4.5);
+  move_j1_wait(10);
+  if (uv == 0)
+  {
+  moveRail(3000,0);   
+  delay(2000);
+  stopRail();
+  move_j1_wait(30);
+  enc_reset_j3();
+  move_j3_wait(30);
+  uv++;
   }
+  else if (uv == 1)
+  {
+    moveRail(3000,1);   
+    delay(1000);
+    stopRail();
+    uv++; 
+  }
+
+  setSmf(0);
+  sendSmf();
+  sect1_started = false;
+  currentPath = PATH_IDLE;
 }
 
 void sect2(void) {
@@ -88,13 +109,11 @@ void sect2(void) {
     sect2_started = true;
 
     // 직교로봇 초기화 시작
-    startCartesianReset();
+    //startCartesianReset();
   }
 
-  if (isCartesianResetDone()) {
-    sect2_started = false;
-    currentPath = PATH_IDLE;
-  }
+  sect2_started = false;
+  currentPath = PATH_IDLE;
 }
 
 // =========================
@@ -121,7 +140,7 @@ void pathTask(void) {
   // 필요 시 강제 정지
   // -------------------------
   if (prev_ssf == 1 && ssf == 0) {
-    stopScaraMotion();
+    //stopScaraMotion();
     setSmf(0);
     sendSmf();
 
@@ -147,7 +166,7 @@ void pathTask(void) {
   // 필요 시 초기화 정지
   // -------------------------
   if (prev_crf == 1 && crf == 0) {
-    stopCartesianReset();
+    //stopCartesianReset();
 
     sect2_started = false;
 

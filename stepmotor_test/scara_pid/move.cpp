@@ -131,7 +131,7 @@ void home()
   delay(50);
 
   moveRail(false, 3000);
-  delay(1000);
+  delay(300);
 
   moveRail_untilStop(true, 3000, stop_rail);
   delay(100);
@@ -139,6 +139,7 @@ void home()
   enc_reset_all();
   motors_enable_all(false);
 }
+
 void goXY(float x, float y)
 {
   float th1_cur = j1_getJointDeg();

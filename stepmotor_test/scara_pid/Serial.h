@@ -4,6 +4,12 @@
 #include <Arduino.h>
 #include <stdint.h>
 
+extern uint8_t ssf ;
+extern uint8_t smf ;
+extern uint8_t crf ;
+extern uint16_t uv ;
+
+
 static const uint8_t SOF = 0xAA;
 static const uint8_t MAX_DATA_LEN = 16;
 
@@ -16,6 +22,8 @@ enum ParamId : uint8_t {
   PID_CRF = 0x03,
   PID_UV  = 0x04,
 };
+
+void setflag();
 
 // =========================
 // 초기화 / 주기 실행

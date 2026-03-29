@@ -3,14 +3,21 @@
 // =========================
 // 내부 상태 변수
 // =========================
-static uint8_t ssf = 0;
-static uint8_t smf = 0;
-static uint8_t crf = 0;
-static uint16_t uv = 0;
+extern uint8_t ssf = 0;
+extern uint8_t smf = 0;
+extern uint8_t crf = 0;
+extern uint16_t uv = 0;
 
 static uint8_t prev_ssf = 0;
 static uint8_t prev_crf = 0;
 
+void setflag()
+{
+  setSsf(0);
+  setSmf(0);
+  setCrf(0);
+  setUv(0);
+}
 // =========================
 // 수신 상태 머신 변수
 // =========================
