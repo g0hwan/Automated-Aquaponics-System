@@ -27,4 +27,8 @@ void moveJ_rel4(float dth1_deg, float dth3_deg, float dth4_deg);
 bool inverse2R_best(float x, float y,
                     float th1_cur_deg, float th2_cur_deg,
                     float& th1_out_deg, float& th2_out_deg);
+
+void moveRail(unsigned long pps, bool dir);
+void stopRail(bool disable_after = false);
+
 #endif

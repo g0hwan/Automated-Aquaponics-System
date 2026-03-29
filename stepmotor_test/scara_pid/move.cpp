@@ -1,60 +1,146 @@
 #include "move.h"
 
-void move_j2_mm(float mm, unsigned long pps)
+
+// =========================
+static void stop_joints_134()
 {
-  // mm -> 회전수 -> deg
-  float deg = (-mm / J2_LEAD_MM_PER_REV) * 360.0f;
-  move_j2(deg, pps);   // 기존 함수 그대로 활용
+  j1_run = false;
+  j3_run = false;
+  j4_run = false;
+
+  digitalWrite(j1_pul, LOW);
+  digitalWrite(j3_pul, LOW);
+  digitalWrite(j4_pul, LOW);
 }
 
-// cm 단위 이동
+static bool move_sync_13(float th1_deg, float th3_deg,
+                         unsigned long timeout_ms = 8000)
+{
+  motors_enable_all(true);
+
+  unsigned long t0 = millis();
+  bool done1 = false;
+  bool done3 = false;
+
+  while (true) {
+    if (!done1) done1 = move_j1_wait(th1_deg);
+    if (!done3) done3 = move_j3_wait(th3_deg);
+
+    if (done1 && done3) {
+      stop_joints_134();
+      motors_enable_all(false);
+      return true;
+    }
+
+    if (millis() - t0 > timeout_ms) {
+      Serial.println("[SYNC13] timeout");
+      stop_joints_134();
+      motors_enable_all(false);
+      return false;
+    }
+
+    //delay(2);
+  }
+}
+
+static bool move_sync_134(float th1_deg, float th3_deg, float th4_deg,
+                          unsigned long timeout_ms = 8000)
+{
+  motors_enable_all(true);
+
+  unsigned long t0 = millis();
+  bool done1 = false;
+  bool done3 = false;
+  bool done4 = false;
+
+  while (true) {
+    if (!done1) done1 = move_j1(th1_deg);
+    if (!done3) done3 = move_j3(th3_deg);
+    if (!done4) done4 = move_j4(th4_deg);
+
+    if (done1 && done3 && done4) {
+      stop_joints_134();
+      motors_enable_all(false);
+      return true;
+    }
+
+    if (millis() - t0 > timeout_ms) {
+      Serial.println("[SYNC134] timeout");
+      stop_joints_134();
+      motors_enable_all(false);
+      return false;
+    }
+
+    //delay(2);
+  }
+}
+
+// =========================
+
+// =========================
+void move_j2_mm(float mm, unsigned long pps)
+{
+  float deg = (mm / J2_LEAD_MM_PER_REV) * 360.0f;
+  move_j2(deg, pps);
+}
+
 void move_j2_cm(float cm, unsigned long pps)
 {
-  move_j2_mm(cm * - 10.0f, pps);
+  move_j2_mm(cm * 10.0f, pps);
 }
 
 void home()
 {
   motors_enable_all(true);
 
-  j1_home_stop_on_switch(true, 2000);
-  delay(500);
-  enc_reset_j1();
-  Serial.println("j1 end");
-
-  bool ok = move_j2(7200.0f, 600000);
-
-  if (!ok) {
-    move_j2_mm(-10.0f);
-  }
-  move_j2_cm(-5.0f);
-  Serial.println("j2 end"); 
-
+  move_j3_wait(30);
   j3_home_stop_on_switch(true, 5000);
   delay(500);
   enc_reset_j3();
-  delay(500);
-  //move_j3_wait(-25.0f);
-  move_j3_wait(175.0f);
-  delay(500);
+  delay(50);
+  //move_j3_wait(-15);
   Serial.println("j3 end");
 
-  j4_home_stop_on_switch_safe(true, 2000);
+  j2_home_stop_on_switch(true, 4000);   // 또는 j2_home_precise(true, 4000, 1000);
+  delay(50);
+  move_j2_cm(-5.0f, 4000);              // 백오프
+  Serial.println("j2 end");
+  delay(50);
+
+  move_j1_wait(-30);
+  j1_home_stop_on_switch(false, 3000);
+  delay(500);
+  move_j1_wait(-90);
+  enc_reset_j1();
+  Serial.println("j1 end");
+/*
+  j4_home_stop_on_switch_safe(false, 2000);
   delay(500);
   move_j4_wait(-15.0f);
   delay(50);
+*/
+  //j4_home_openloop(true, 2300);   // 홈 스위치로 원점
+  //delay(200);
+
+  move_j4_openloop(15.0f, 1200);  // 절대각 -15도
+  delay(200);
+
+  //move_j4_openloop_rel(10.0f, 2300); // 현재 위치에서 +10도
+  //delay(50);
   Serial.println("j4 end");
+  delay(50);
+
+  moveRail(false, 3000);
+  delay(1000);
+
+  moveRail_untilStop(true, 3000, stop_rail);
+  delay(100);
+
   enc_reset_all();
-  
   motors_enable_all(false);
 }
-
-
 void goXY(float x, float y)
 {
-  motors_enable_all(true);
-
-  // 현재 조인트각 읽기
   float th1_cur = j1_getJointDeg();
   float th2_cur = j3_getJointDeg();
 
@@ -62,16 +148,11 @@ void goXY(float x, float y)
   bool ok = inverse2R_best(x, y, th1_cur, th2_cur, th1, th2);
   if (!ok) {
     Serial.println("[IK] unreachable");
-    motors_enable_all(false);
     return;
   }
 
-  move_j1_wait(th1);
-  move_j3_wait(th2);
-
-  motors_enable_all(false);
+  move_sync_13(th1, -th2);
 }
-
 
 void printXY(float th1_deg, float th2_deg)
 {
@@ -90,19 +171,13 @@ void moveXY_rel(float dx_mm, float dy_mm)
   float x_tgt = cur.x_mm + dx_mm;
   float y_tgt = cur.y_mm + dy_mm;
 
-  motors_enable_all(true);
-
   float th1_tgt, th2_tgt;
   if (!inverse2R_best(x_tgt, y_tgt, th1_cur, th2_cur, th1_tgt, th2_tgt)) {
     Serial.println("[IK] unreachable (rel)");
-    motors_enable_all(false);
     return;
   }
 
-  move_j1_wait(th1_tgt);
-  move_j3_wait(th2_tgt);
-
-  motors_enable_all(false);
+  move_sync_13(th1_tgt, th2_tgt);
 }
 
 void goXY_keepParallel(float x, float y)
@@ -111,43 +186,33 @@ void goXY_keepParallel(float x, float y)
   float th2_cur = j3_getJointDeg();
 
   float th1, th2;
-  if (!inverse2R_best(x, y, th1_cur, th2_cur, th1, th2)) 
-  {
-    motors_enable_all(false);
+  if (!inverse2R_best(x, y, th1_cur, th2_cur, th1, th2)) {
+    Serial.println("[IK] unreachable");
     return;
   }
+
   float phi_offset = 0.0f;
   float wrist_deg = wristPhiParallelX(th1, th2, phi_offset);
 
-  move_j1_wait(th1);
-  move_j3_wait(th2);
-  move_j4_wait(wrist_deg);
+  move_sync_134(th1, th2, wrist_deg);
 }
 
-
-void tool(bool on) // 엔드이팩터 교체
+void tool(bool on)
 {
-  if (on)
-  {
+  if (on) {
     digitalWrite(num1, HIGH);
-    digitalWrite(num2, HIGH);
-    digitalWrite(num3, HIGH);
-  }
-  else 
-  {
-    digitalWrite(num1, LOW);
     digitalWrite(num2, LOW);
+    digitalWrite(num3, HIGH);
+  } else {
+    digitalWrite(num1, LOW);
+    digitalWrite(num2, HIGH);
     digitalWrite(num3, LOW);
   }
-
 }
 
-//  상대/절대 관절각 이동
-// ---------------------------------------------
 void moveJ_abs(float th1_deg, float th3_deg)
 {
-  move_j1_wait(th1_deg);
-  move_j3_wait(th3_deg);
+  move_sync_13(th1_deg, th3_deg);
 }
 
 void moveJ_rel(float dth1_deg, float dth3_deg)
@@ -158,12 +223,9 @@ void moveJ_rel(float dth1_deg, float dth3_deg)
   moveJ_abs(th1_cur + dth1_deg, th3_cur + dth3_deg);
 }
 
-// j4 포함 버전 (원하면 사용)
 void moveJ_abs4(float th1_deg, float th3_deg, float th4_deg)
 {
-  move_j1_wait(th1_deg);
-  move_j3_wait(th3_deg);
-  move_j4_wait(th4_deg);
+  move_sync_134(th1_deg, th3_deg, th4_deg);
 }
 
 void moveJ_rel4(float dth1_deg, float dth3_deg, float dth4_deg)
@@ -172,5 +234,5 @@ void moveJ_rel4(float dth1_deg, float dth3_deg, float dth4_deg)
   float th3_cur = j3_getJointDeg();
   float th4_cur = j4_getJointDeg();
 
-  moveJ_abs4(th1_cur + dth1_deg, th3_cur + dth3_deg, dth4_deg + th4_cur);
+  moveJ_abs4(th1_cur + dth1_deg, th3_cur + dth3_deg, th4_cur + dth4_deg);
 }
