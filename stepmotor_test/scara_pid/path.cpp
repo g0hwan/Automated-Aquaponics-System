@@ -43,7 +43,7 @@ void sect1(void) {
     setSmf(1);
     sendSmf();
   }
-    home();
+  home();
   delay(1000);
   moveRail(3000,0);   
   delay(900);

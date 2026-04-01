@@ -22,14 +22,14 @@ void loop() {
   //move_j1_wait(9000);
   //move_j2_cm(2);
   //move_j1_wait(-9000);
-  /*
+  
   j3_home_stop_on_switch(true, 5000);
   move_j2_cm(-5);
-  moveRail(3000,1);
-  delay(3000);
-  stopRail();
+  //moveRail(3000,1);
+  //delay(3000);
+  //stopRail();
   j1_home_stop_on_switch(false, 4000);
-*/
+
   home();
   delay(1000);
   moveRail(3000,0);   
@@ -71,6 +71,11 @@ void loop() {
   move_j1_wait(30);
   enc_reset_j3();
   move_j3_wait(30);
+  move_j2_cm(-3);
+  delay(1000);
+  move_j2_cm(3);
+  move_j3_wait(-30);
+  move_j1_wait(-30);
   uv++;
   }
   else if (uv == 1)
