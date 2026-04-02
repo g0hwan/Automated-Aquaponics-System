@@ -7,7 +7,12 @@ float tFahrenheit = 0; //화씨
 float RH = 0; // 습도
 uint16_t dht_flag = 0;
 //=========================================
-
+void microDelay(uint16_t us)
+{
+  uint32_t start = DWT->CYCCNT;
+  uint32_t ticks = (uint32_t)us * (SystemCoreClock / 1000000U);
+  while ((DWT->CYCCNT - start) < ticks);
+}
 static void dht_setoutput(void)
 {
 	GPIO_InitTypeDef gpio = {0};

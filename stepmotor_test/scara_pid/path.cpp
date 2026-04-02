@@ -38,12 +38,12 @@ void sect1(void) {
     sect1_started = true;
 
     // 스카라 동작 시작
-    startScaraMotion();
+    startScaraMotion();// 홈 위치 이동
     // 현재 스카라 움직이는 중
     setSmf(1);
     sendSmf();
   }
-  home();
+  //home(); // 홈 위치
   delay(1000);
   moveRail(3000,0);   
   delay(900);
@@ -59,7 +59,7 @@ void sect1(void) {
   move_j3_wait(220);
   move_j1_wait(30);
   move_j2_cm(-9);
-  delay(1000);
+  delay(1000); // 트레이 픽업
 
   move_j2_cm(9);
 
@@ -75,20 +75,22 @@ void sect1(void) {
   delay(1800);
   stopRail();
   
-  setCrf(1);
+  setCrf(1); // 직교로봇 리셋
   sendCrf();
   
   move_j2_cm(4.5);
   move_j1_wait(10);
   if (uv == 0)
   {
-  moveRail(3000,0);   
-  delay(2000);
-  stopRail();
-  move_j1_wait(30);
-  enc_reset_j3();
-  move_j3_wait(30);
-  uv++;
+    moveRail(3000,0);   
+    delay(2000);
+    stopRail();
+    move_j1_wait(30);
+    enc_reset_j3();
+    move_j3_wait(30);
+    uv++;
+    setUv(uv);
+    sendUv();
   }
   else if (uv == 1)
   {
@@ -96,9 +98,11 @@ void sect1(void) {
     delay(1000);
     stopRail();
     uv++; 
+    setUv(uv);
+    sendUv();
   }
 
-  setSmf(0);
+  setSmf(0); // 스카라 구동 끝
   sendSmf();
   sect1_started = false;
   currentPath = PATH_IDLE;

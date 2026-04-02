@@ -488,12 +488,6 @@ void DWT_Delay_Init(void)
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 }
 
-void microDelay(uint16_t us)
-{
-  uint32_t start = DWT->CYCCNT;
-  uint32_t ticks = (uint32_t)us * (SystemCoreClock / 1000000U);
-  while ((DWT->CYCCNT - start) < ticks);
-}
 int dcnt, acnt;
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
