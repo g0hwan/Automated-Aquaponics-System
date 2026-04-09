@@ -101,7 +101,15 @@ void sect1(void) {
     setUv(uv);
     sendUv();
   }
-
+  move_j1_wait(40);
+  moveRail_untilStop(true, 3000, stop_rail);
+  moveRail(3000,0);   
+  delay(900);
+  stopRail();
+  //move_j2_cm(-1.2);
+  j3_home_stop_on_switch(false, 5000);
+  j1_home_stop_on_switch(false, 4200);
+  home();
   setSmf(0); // 스카라 구동 끝
   sendSmf();
   sect1_started = false;

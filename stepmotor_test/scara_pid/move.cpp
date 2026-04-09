@@ -108,7 +108,7 @@ void home()
   delay(50);
 
   move_j1_wait(-30);
-  j1_home_stop_on_switch(false, 3000);
+  j1_home_stop_on_switch(false, 4000);
   delay(500);
   move_j1_wait(-90);
   enc_reset_j1();
@@ -132,6 +132,8 @@ void home()
 
   moveRail(false, 3000);
   delay(300);
+  stopRail();
+  delay(100);
 
   moveRail_untilStop(true, 3000, stop_rail);
   delay(100);

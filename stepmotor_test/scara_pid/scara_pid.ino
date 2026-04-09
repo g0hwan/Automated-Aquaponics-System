@@ -23,8 +23,8 @@ void loop() {
   //move_j2_cm(2);
   //move_j1_wait(-9000);
   
-  j3_home_stop_on_switch(true, 5000);
-  move_j2_cm(-5);
+  //j3_home_stop_on_switch(true, 5000);
+  //move_j2_cm(-5);
   //moveRail(3000,1);
   //delay(3000);
   //stopRail();
@@ -61,12 +61,12 @@ void loop() {
   delay(1800);
   stopRail();
 
-  move_j2_cm(4.5);
+  //move_j2_cm(4.5);
   move_j1_wait(10);
   if (uv == 0)
   {
   moveRail(3000,0);   
-  delay(2000);
+  delay(1500);
   stopRail();
   move_j1_wait(30);
   enc_reset_j3();
@@ -85,6 +85,16 @@ void loop() {
     stopRail();
     uv++; 
   }
+  move_j1_wait(40);
+  moveRail_untilStop(true, 3000, stop_rail);
+  moveRail(3000,0);   
+  delay(900);
+  stopRail();
+  //move_j2_cm(-1.2);
+  j3_home_stop_on_switch(false, 5000);
+  j1_home_stop_on_switch(false, 4200);
+  home();
+  delay(500000000);
   //moveRail_untilStop(true, 1000, stop_rail);
   //moveRail(1500, true);
 

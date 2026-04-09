@@ -5,8 +5,8 @@
 
 void pathTask();
 
-void sect1();
-void sect2();
+void sect1();  // 발아실 이동
+void sect2();  // 수경재배실 이동
 void sect3();
 // 필요 시 계속 추가
 
