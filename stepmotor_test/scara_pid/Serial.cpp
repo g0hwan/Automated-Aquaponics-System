@@ -8,7 +8,7 @@ uint8_t smf = 0;
 uint8_t crf = 0;
 uint16_t uv = 0;
 
-uint8_t wcnt = 0;
+uint16_t wcnt = 0;
 uint8_t ulf  = 0;
 uint8_t urf  = 0;
 uint8_t wrf  = 0;
@@ -20,7 +20,7 @@ uint8_t ff   = 0;
 static uint8_t prev_ssf = 0;
 static uint8_t prev_crf = 0;
 
-static uint8_t prev_wcnt = 0;
+static uint16_t prev_wcnt = 0;
 static uint8_t prev_ulf  = 0;
 static uint8_t prev_urf  = 0;
 static uint8_t prev_wrf  = 0;

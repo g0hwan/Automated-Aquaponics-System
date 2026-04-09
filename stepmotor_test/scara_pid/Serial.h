@@ -12,7 +12,7 @@ extern uint8_t smf;
 extern uint8_t crf;
 extern uint16_t uv;
 
-extern uint8_t wcnt;
+extern uint16_t wcnt;
 extern uint8_t ulf;
 extern uint8_t urf;
 extern uint8_t wrf;
@@ -33,14 +33,14 @@ enum ParamId : uint8_t {
   PID_CRF  = 0x03,
   PID_UV   = 0x04,
 
-  PID_WCNT = 0x05,
-  PID_ULF  = 0x06,
-  PID_URF  = 0x07,
-  PID_WRF  = 0x08,
-  PID_WLF  = 0x09,
-  PID_UEF  = 0x0A,
-  PID_WEF  = 0x0B,
-  PID_FF   = 0x0C,
+  PID_ULF = 0x05,
+  PID_URF  = 0x06,
+  PID_WCNT  = 0x07,
+  PID_WLF  = 0x08,
+  PID_WRF  = 0x09,
+  PID_FF  = 0x0A,
+  PID_UEF  = 0x0B,
+  PID_WEF   = 0x0C,
 };
 
 void setflag();
