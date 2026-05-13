@@ -7,6 +7,25 @@
 
 OpenManipulator omx;
 
+bool torque_on = true;
+
+// ==================== toggleTorque(): 토크 ON/OFF 토글 ====================
+inline void toggleTorque()
+{
+  if (torque_on)
+  {
+    omx.disableAllActuator();
+    torque_on = false;
+    Serial.println("[CMD] Torque OFF");
+  }
+  else
+  {
+    omx.enableAllActuator();
+    torque_on = true;
+    Serial.println("[CMD] Torque ON");
+  }
+}
+
 // ==================== 초기화 ====================
 inline void initManipulator()
 {
@@ -49,7 +68,12 @@ inline Eigen::Vector3d readTCP()
 // ==================== moveHome(): 모든 관절을 0 rad 위치로 이동 ====================
 inline void moveHome(double t = 2.0)
 {
-  std::vector<double> home_pos = {0.0, 0.0, 0.0, 0.0};
+  std::vector<double> home_pos = {
+    90.0 * M_PI / 180.0,
+    -71.8 * M_PI / 180.0,
+    34.8 * M_PI / 180.0,
+    75 * M_PI / 180.0
+  };
   omx.makeJointTrajectory(home_pos, t);
   Serial.println("[CMD] moveHome() - Move to moveHome position (0 rad)");
 }

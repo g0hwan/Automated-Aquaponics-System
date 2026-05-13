@@ -34,12 +34,14 @@ void loop()
       Serial.println("toolopen / toolclose   - Gripper control");
       Serial.println("moveHome                   - Move all joints to 0 rad");
       Serial.println("keephori               - Ensure that the TCP remains horizontal.");
-      Serial.println("pitch val_deg           - Set gripper pitch angle (deg)\n");
+      Serial.println("pitch val_deg           - Set gripper pitch angle (deg)");
+      Serial.println("q                       - Torque ON/OFF toggle \ln");
     }
 
     else if (cmd == "readJoint") readJoint();
     else if (cmd == "readTCP") readTCP();
-
+    else if (cmd == "q") toggleTorque();
+    
     else if (cmd.startsWith("moveJointAbs"))
     {
       float j1, j2, j3, j4;
