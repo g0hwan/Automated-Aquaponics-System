@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define DS18B20_PORT GPIOB
-#define DS18B20_PIN  GPIO_PIN_0
+#define DS18B20_PIN  GPIO_PIN_0 //수온센서
 
 // 너가 이미 쓰는 microDelay(us) 함수 (DWT든 TIM이든)
 void microDelay(uint16_t us);
