@@ -24,6 +24,7 @@
 #include "sens.h"
 #include "dht.h"
 #include "ds18b20.h"
+#include "relay_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -108,6 +109,9 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+  Relay_Init();
+
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_ADC_Start(&hadc1);
   HAL_ADC_Start_IT(&hadc1);
@@ -122,8 +126,11 @@ int main(void)
   {
 	  if (ph_flag==1)
 	  {
-		  printf("tds = %lu, ph = %.2f\r\n", (unsigned long)tds_value, ph_value);
-		  ph_flag = 0;
+	      printf("tds = %lu, ph = %.2f\r\n", (unsigned long)tds_value, ph_value);
+
+	      Relay_Control(ph_value, tds_value);
+
+	      ph_flag = 0;
 	  }
 	  if(dht_flag)
 	  {

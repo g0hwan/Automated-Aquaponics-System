@@ -20,6 +20,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
   {
 	  adc2_ph =HAL_ADC_GetValue(hadc);
 	  ph_value = 7.0 + (adc2_ph - 482.5)*(4.0 - 7.0)/(635-482.5);
+	  ph_value = 1.0714f * ph_value - 1.4643f;
 	  //7.0f + ((float)adc - ADC_PH7) * (4.0f - 7.0f) / (ADC_PH4 - ADC_PH7);
   }
 }
