@@ -1,32 +1,37 @@
-#include "emergency.h"  
+#include "emergency.h"
 
 const byte stop_pin = 3;
 const byte start_pin = 2;
 const byte sw_pin = 9;
 const byte led_pin = 10;
-bool stop = false;
-bool start = true;
-bool sw = false;
+
+volatile bool emergencyLatched = false;
+volatile bool startRequest = false;
 
 void emergency_pin()
 {
-  pinMode(stop_pin, INPUT);
-  pinMode(start_pin, INPUT);
+  pinMode(stop_pin, INPUT_PULLUP);
+  pinMode(start_pin, INPUT_PULLUP);
+  pinMode(sw_pin, INPUT_PULLUP);
+  pinMode(led_pin, OUTPUT);
+
+  digitalWrite(led_pin, LOW);
+
   attachInterrupt(digitalPinToInterrupt(stop_pin), stopISR, FALLING);
-  attachInterrupt(digitalPinToInterrupt(start_pin), startISR, RISING); 
+  attachInterrupt(digitalPinToInterrupt(start_pin), startISR, FALLING);
 }
-void stopISR() 
-{          
-  stop = true;   
-  start = false;  
-  sw = false;
+
+void stopISR()
+{
+  emergencyLatched = true;
 }
-void startISR() 
-{          
-  stop = false;   
-  start = true;
+
+void startISR()
+{
+  startRequest = true;
 }
+
 bool SW()
 {
-  digitalRead(sw_pin);
+  return digitalRead(sw_pin) == LOW;
 }

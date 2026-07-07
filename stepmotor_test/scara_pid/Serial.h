@@ -11,6 +11,7 @@ extern uint8_t ssf;
 extern uint8_t smf;
 extern uint8_t crf;
 extern uint16_t uv;
+extern uint8_t hm;
 
 extern uint16_t wcnt;
 extern uint8_t ulf;
@@ -41,6 +42,7 @@ enum ParamId : uint8_t {
   PID_FF  = 0x0A,
   PID_UEF  = 0x0B,
   PID_WEF   = 0x0C,
+  PID_HM = 0x12
 };
 
 void setflag();
@@ -65,6 +67,8 @@ uint8_t getSsf(void);
 uint8_t getSmf(void);
 uint8_t getCrf(void);
 uint16_t getUv(void);
+uint8_t getHm(void);
+void setHm(uint8_t value);
 
 uint8_t getWcnt(void);
 uint8_t getUlf(void);
@@ -94,6 +98,7 @@ void setFf(uint8_t value);
 // =========================
 uint8_t getPrevSsf(void);
 uint8_t getPrevCrf(void);
+uint8_t getPrevHm(void);
 
 uint8_t getPrevWcnt(void);
 uint8_t getPrevUlf(void);
@@ -113,6 +118,7 @@ void sendSsf(void);
 void sendSmf(void);
 void sendCrf(void);
 void sendUv(void);
+void sendHm(void);
 
 void sendWcnt(void);
 void sendUlf(void);

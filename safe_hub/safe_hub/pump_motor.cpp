@@ -8,13 +8,17 @@ void pump_pin()                                          // 펌프모터 핀 설
   {
     pinMode(rel_pin[i], OUTPUT);
   }
-  pump(off, off, off, off);
+  //pump(off, off, off, off);
 }
 
 void pump(bool a, bool b, bool c, bool d)               //펌프모터 구동 함수
 {
-  digitalWrite(rel_pin[0], a ? HIGH : LOW);
-  digitalWrite(rel_pin[1], b ? HIGH : LOW);
-  digitalWrite(rel_pin[2], c ? HIGH : LOW);
-  digitalWrite(rel_pin[3], d ? HIGH : LOW);
-}
+  if (a == 1) digitalWrite(rel_pin[0], HIGH);
+  else digitalWrite(rel_pin[0], LOW);
+  if (b == 1) digitalWrite(rel_pin[1], HIGH);
+  else digitalWrite(rel_pin[1], LOW);
+  if (c == 1) digitalWrite(rel_pin[2], HIGH);
+  else digitalWrite(rel_pin[2], LOW);
+  if (d == 1) digitalWrite(rel_pin[3], HIGH);
+  else digitalWrite(rel_pin[3], LOW);
+  }

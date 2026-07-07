@@ -1,6 +1,6 @@
 #include "move.h"
 
-
+//Servo myservo;
 // =========================
 static void stop_joints_134()
 {
@@ -12,24 +12,32 @@ static void stop_joints_134()
   digitalWrite(j3_pul, LOW);
   digitalWrite(j4_pul, LOW);
 }
-
 static bool move_sync_13(float th1_deg, float th3_deg,
-                         unsigned long timeout_ms = 8000)
+                         unsigned long j1_max_pps,
+                         unsigned long j3_max_pps,
+                         float tolDeg,
+                         unsigned long stable_ms,
+                         unsigned long timeout_ms)
 {
   motors_enable_all(true);
 
   unsigned long t0 = millis();
-  bool done1 = false;
-  bool done3 = false;
+  unsigned long inTolSince = 0;
 
   while (true) {
-    if (!done1) done1 = move_j1_wait(th1_deg);
-    if (!done3) done3 = move_j3_wait(th3_deg);
+    bool done1 = move_j1(th1_deg, j1_max_pps, tolDeg);
+    bool done3 = move_j3(th3_deg, j3_max_pps, tolDeg);
 
     if (done1 && done3) {
-      stop_joints_134();
-      motors_enable_all(false);
-      return true;
+      if (inTolSince == 0) inTolSince = millis();
+
+      if (millis() - inTolSince >= stable_ms) {
+        stop_joints_134();
+        motors_enable_all(false);
+        return true;
+      }
+    } else {
+      inTolSince = 0;
     }
 
     if (millis() - t0 > timeout_ms) {
@@ -38,11 +46,8 @@ static bool move_sync_13(float th1_deg, float th3_deg,
       motors_enable_all(false);
       return false;
     }
-
-    //delay(2);
   }
 }
-
 static bool move_sync_134(float th1_deg, float th3_deg, float th4_deg,
                           unsigned long timeout_ms = 8000)
 {
@@ -92,27 +97,53 @@ void move_j2_cm(float cm, unsigned long pps)
 void home()
 {
   motors_enable_all(true);
+  delay(100);
+  //grip_timer_off(); 
+  j4_home();
+  delay(100);
+  //j4_stop();
+  //Serial.println("4 fin");
+  //delay(1000);
 
-  move_j3_wait(30);
-  j3_home_stop_on_switch(true, 5000);
-  delay(500);
-  enc_reset_j3();
-  delay(50);
-  //move_j3_wait(-15);
-  Serial.println("j3 end");
-
+  grip(false);
   j2_home_stop_on_switch(true, 4000);   // 또는 j2_home_precise(true, 4000, 1000);
   delay(50);
-  move_j2_cm(-5.0f, 4000);              // 백오프
   Serial.println("j2 end");
-  delay(50);
+  //delay(1000);
 
-  move_j1_wait(-30);
-  j1_home_stop_on_switch(false, 4000);
-  delay(500);
-  move_j1_wait(-90);
+  //delay(50);
+  enc_reset_j3();
+  move_j3_wait(150, 5500);
+  enc_reset_j3();
+  delay(100);
+  //Serial.println("j3 back");
+  j3_home_stop_on_switch(true, 4000);
+  enc_reset_j3();
+  delay(5);
+  //Serial.println("j3 home");
+  move_j3_wait(-90);  
+  enc_reset_j3();
+
+  move_j2_cm(-1.0f, 4000);
+  Serial.println("j2 home");
+
   enc_reset_j1();
-  Serial.println("j1 end");
+  delay(5);
+  Serial.println("j1_back start");
+  move_j1_wait(-30);
+  //Serial.println("j1_back");
+  //delay(1000);
+
+  j1_home_stop_on_switch(false, 2000);
+  delay(500);
+  enc_reset_j1();
+  //Serial.println("j1 home");
+  //delay(1000);
+
+  move_j1_wait(-40);
+  enc_reset_j1();
+  delay(100);
+  //Serial.println("j1 end");
 /*
   j4_home_stop_on_switch_safe(false, 2000);
   delay(500);
@@ -122,15 +153,11 @@ void home()
   //j4_home_openloop(true, 2300);   // 홈 스위치로 원점
   //delay(200);
 
-  move_j4_openloop(15.0f, 1200);  // 절대각 -15도
+  //move_j4_openloop(15.0f, 1200);  // 절대각 -15도
+  //j4_home_openloop(true, 2000);
   delay(200);
 
-  //move_j4_openloop_rel(10.0f, 2300); // 현재 위치에서 +10도
-  //delay(50);
-  Serial.println("j4 end");
-  delay(50);
-
-  moveRail(false, 3000);
+  moveRail(false, 4000);
   delay(300);
   stopRail();
   delay(100);
@@ -142,7 +169,7 @@ void home()
   motors_enable_all(false);
 }
 
-void goXY(float x, float y)
+void goXY(float x, float y, unsigned long pps1, unsigned long int pps2)
 {
   float th1_cur = j1_getJointDeg();
   float th2_cur = j3_getJointDeg();
@@ -154,7 +181,7 @@ void goXY(float x, float y)
     return;
   }
 
-  move_sync_13(th1, -th2);
+  //move_sync_13(th1, -th2, pps1, pps2);
 }
 
 void printXY(float th1_deg, float th2_deg)
@@ -180,7 +207,7 @@ void moveXY_rel(float dx_mm, float dy_mm)
     return;
   }
 
-  move_sync_13(th1_tgt, th2_tgt);
+  //move_sync_13(th1_tgt, th2_tgt);
 }
 
 void goXY_keepParallel(float x, float y)
@@ -215,7 +242,7 @@ void tool(bool on)
 
 void moveJ_abs(float th1_deg, float th3_deg)
 {
-  move_sync_13(th1_deg, th3_deg);
+  //move_sync_13(th1_deg, th3_deg);
 }
 
 void moveJ_rel(float dth1_deg, float dth3_deg)
@@ -239,3 +266,4 @@ void moveJ_rel4(float dth1_deg, float dth3_deg, float dth4_deg)
 
   moveJ_abs4(th1_cur + dth1_deg, th3_cur + dth3_deg, th4_cur + dth4_deg);
 }
+

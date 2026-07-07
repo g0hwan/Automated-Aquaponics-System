@@ -1,6 +1,7 @@
 #include "encoder.h"
 #include "set_motor.h"
 #include "pid.h"
+#include "servo_config.h"
 
 float j2_pos_mm = 0.0f;
 const float cpr    = 400.0f;
@@ -30,7 +31,7 @@ volatile long j4pulseInterval = 100;
 const unsigned int PULSE_US = 5;   // 펄스폭은 넉넉히
 const long PULSES_PER_REV = 800;  // (가정) 1.8°모터 + 128분주
 float J2_LEAD_MM_PER_REV = (8.0f/1.0f);
-unsigned long J2_DEFAULT_PPS =2000;   // j2 기본 속도
+unsigned long J2_DEFAULT_PPS =3500;   // j2 기본 속도
 volatile bool j2_endstop_hit = false;
 
 constexpr bool EN_ACTIVE_LOW = false; // 모터enable
@@ -44,14 +45,8 @@ volatile bool rail_run = false;
 volatile bool railPulseState = false;
 volatile long railPulseInterval = 100;
 
-// ===== J4 open-loop state (엔코더 미사용) =====
-volatile long j4_ol_target_steps = 0;
-volatile long j4_ol_step_count   = 0;
-volatile bool j4_ol_move_done    = false;
-
-// 조인트 기준 각도(deg) 저장
-static float j4_openloop_deg = 0.0f;
-
+static bool waitStableLow(uint8_t pin, unsigned long stable_ms);
+static bool waitStableHigh(uint8_t pin, unsigned long stable_ms, unsigned long timeout_ms);
 
 float encoder_getAngleDeg(const encod* e) {
   return -(e->pos) * 360.0f / en_cnt;
@@ -99,7 +94,7 @@ void j1EncoderA() {//엔코더 읽기
   j1_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j1(float targetAngle, float tolDeg = 0.3f)
+bool move_j1(float targetAngle, unsigned long max_pps, float tolDeg)
 {
   float Angle = j1_gear * targetAngle;
 
@@ -116,9 +111,12 @@ bool move_j1(float targetAngle, float tolDeg = 0.3f)
   float error  = Angle - nowAngle;
   float pidOut = pid_update(&j1_pid, error);
 
+  if (max_pps < 1) max_pps = 1;
+  if(max_pps > J1_DEFAULT_MAX_PPS) max_pps = J1_DEFAULT_MAX_PPS;
+
   float speed = fabs(pidOut);
   if (speed < 1) speed = 1;
-  if (speed > 3500) speed = 3500;
+  if (speed > max_pps) speed = max_pps;
 
   long interval = 1000000L / (2.0f * speed);
   
@@ -159,9 +157,10 @@ static float j1_error_deg(float targetAngle) //현재 오차값 저장하는 함
 }
 
 bool move_j1_wait(float targetAngle,
-                  float tolDeg = 1.0f,
-                  unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 80000) //연속동작 가능
+                  unsigned long max_pps,
+                  float tolDeg,
+                  unsigned long stable_ms,
+                  unsigned long timeout_ms)
 {
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
@@ -169,7 +168,7 @@ bool move_j1_wait(float targetAngle,
   motors_enable_all(true);
 
   while (true) {
-    move_j1(targetAngle);                 
+    move_j1(targetAngle, max_pps, tolDeg);
 
     float e = j1_error_deg(targetAngle);
     if (fabs(e) <j1_gear* tolDeg) {
@@ -220,7 +219,7 @@ void j1_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
 
   unsigned long t0 = millis();
   const unsigned long TIMEOUT_MS = 5000;
-  const unsigned long STABLE_LOW_MS = 20;
+  const unsigned long STABLE_HIGH_MS = 20;
 
   while (true) {
     if (millis() - t0 > TIMEOUT_MS) {
@@ -230,12 +229,12 @@ void j1_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
       return;
     }
 
-    if (digitalRead(stop_j1) == LOW) {
-      waitStableLow(stop_j1, STABLE_LOW_MS);
+    if (digitalRead(stop_j1) == HIGH) {
+      waitStableHigh(stop_j1, STABLE_HIGH_MS, 1000);
       break;
     }
 
-    //delay(1);
+    delay(1);
   }
 
   j1_run = false;
@@ -485,7 +484,7 @@ void j3EncoderA() {
   j3_enc.pos += (a == b) ? 1 : -1;
 }
 
-bool move_j3(float targetAngle, float tolDeg = 0.1f)
+bool move_j3(float targetAngle, unsigned long max_pps, float tolDeg)
 {
   float Angle = j3_gear * targetAngle;
 
@@ -513,9 +512,12 @@ bool move_j3(float targetAngle, float tolDeg = 0.1f)
     return true;
   }
 
+  if (max_pps < 1) max_pps = 1;
+  if(max_pps > J3_DEFAULT_MAX_PPS) max_pps = J3_DEFAULT_MAX_PPS;
+
   float speed = fabs(pidOut);
   if (speed < 1) speed = 1;
-  if (speed > 5500) speed = 5500;
+  if (speed > max_pps) speed = max_pps;
 
   long interval = 1000000L / (2.0f * speed);
 
@@ -546,9 +548,10 @@ static float j3_error_deg(float targetAngle) //현재 오차값 저장하는 함
   return (j3_gear * targetAngle) - j3_now_deg();
 } 
 bool move_j3_wait(float targetAngle,
-                  float tolDeg = 1.0f,
-                  unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 8000)
+                  unsigned long max_pps,
+                  float tolDeg,
+                  unsigned long stable_ms,
+                  unsigned long timeout_ms)
 {
   unsigned long t0 = millis();
   unsigned long inTolSince = 0;
@@ -556,7 +559,7 @@ bool move_j3_wait(float targetAngle,
   motors_enable_all(true);
 
   while (true) {
-    bool reached = move_j3(targetAngle, tolDeg);
+    bool reached = move_j3(targetAngle, max_pps, tolDeg);
 
     if (reached) {
       if (inTolSince == 0) inTolSince = millis();
@@ -604,7 +607,6 @@ static bool waitStableLow(uint8_t pin, unsigned long stable_ms)
   return true;
 }
 
-// stop 핀에서 HIGH가 stable_ms 동안 연속 유지될 때 true (눌림 해제 확인용)
 static bool waitStableHigh(uint8_t pin, unsigned long stable_ms, unsigned long timeout_ms = 1000)
 {
   unsigned long t0 = millis();
@@ -692,19 +694,35 @@ void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps)
 
 //관절 4에 대한 함수들//////////////////////////////////////////////////////////////////////
 volatile long j4_step_edges = 0;
-/*
-void j4stepPulse() {
-  if(!j4_run){
+
+void j4stepPulse()
+{
+  if (!j4_run) {
     digitalWrite(j4_pul, LOW);
     return;
   }
+
   digitalWrite(j4_pul, j4pulseState);
-  // 상승엣지(LOW->HIGH)에서만 1 step으로 카운트
-  if (j4pulseState == HIGH) j4_step_edges++;
   j4pulseState = !j4pulseState;
 }
-*/
+
+static void j4_set_pps(unsigned long pps)
+{
+  if (pps < 1) pps = 1;
+
+  unsigned long isr_us = 1000000UL / (2UL * pps);
+
+  // Timer5 initialize가 50us 기준이라 너무 작은 값은 막음
+  if (isr_us < 50) isr_us = 50;
+
+  noInterrupts();
+  j4pulseInterval = isr_us;
+  Timer5.setPeriod(j4pulseInterval);
+  interrupts();
+}
+/*
 void j4stepPulse() {
+
   if(!j4_run){
     digitalWrite(j4_pul, LOW);
     return;
@@ -730,7 +748,7 @@ void j4stepPulse() {
 
   j4pulseState = !j4pulseState;
 }
-
+*/
 void j4EncoderA() {
   bool a = digitalRead(j4_enc.pinA);
   bool b = digitalRead(j4_enc.pinB);
@@ -828,14 +846,14 @@ void move_j4_wait(float targetAngle,
   motors_enable_all(false);
 }
 
-
+/*
 static void j4_set_pps(unsigned long pps) { 
   if (pps < 1) pps = 1; unsigned long isr_us = 1000000UL / (2 * pps); // 토글이라 2배 if (isr_us < 50) isr_us = 50; // 너무 빠른 값 방지(필요시 조절)
   noInterrupts(); 
   Timer5.setPeriod(isr_us); 
   interrupts();
   j4_run = true; 
-}
+}*/
 
 bool j4_home_stop_on_switch_safe(bool dir_to_switch, unsigned long pps)
 {
@@ -1086,6 +1104,11 @@ bool moveRail_untilStop(bool dir, unsigned long pps,
       delay(300);
       stopRail(true);
     }
+    else if (stop_pin == stop3_rail) {
+      moveRail(pps, true);
+      delay(300);
+      stopRail(true);
+    }
     else {
       stopRail(true);
       return false;
@@ -1115,6 +1138,8 @@ bool moveRail_untilStop(bool dir, unsigned long pps,
     }
   }
 }
+
+/*
 // ========================= J4 open-loop (엔코더 미사용) =========================
 
 // J4 enable 제어 (현재 네 보드 기준 유지)
@@ -1282,4 +1307,475 @@ bool move_j4_openloop_rel(float delta_deg, unsigned long pps)
       return false;
     }
   }
+}*/
+void j4_move(bool dir, unsigned long pps)
+{
+  //delay(100);
+  pinMode(j4_dir, OUTPUT);
+  delay(10);
+  pinMode(j4_pul, OUTPUT);
+  pinMode(j4_en, OUTPUT);
+  pinMode(stop_j4, INPUT_PULLUP);
+
+  delay(100);
+  
+  if (pps < 100)  pps = 100;
+  if (pps > 3000) pps = 3000;
+
+  unsigned long isr_us = 1000000UL / (2UL * pps);
+  if (isr_us < 50) isr_us = 50;
+
+  noInterrupts();
+  j4pulseState = LOW;
+  j4_run = false;
+  interrupts();
+
+  digitalWrite(j4_pul, LOW);
+  digitalWrite(j4_dir, dir ? HIGH : LOW);
+  digitalWrite(j4_en, LOW);
+
+  Timer5.stop();
+  Timer5.detachInterrupt();
+  Timer5.initialize(isr_us);
+  Timer5.attachInterrupt(j4stepPulse);
+
+  noInterrupts();
+  j4_run = true;
+  interrupts();
+
+  Timer5.start();
+}
+
+void j4_stop()
+{
+  noInterrupts();
+  j4_run = false;
+  j4pulseState = LOW;
+  interrupts();
+
+  digitalWrite(j4_pul, LOW);
+
+  Timer5.stop();
+  Timer5.detachInterrupt();   // J4가 Timer5 인터럽트 소유 해제
+
+  digitalWrite(j4_en, LOW);   // 토크 유지
+
+  grip_timer_on();            // J4 종료 후 Servo가 다시 Timer5 소유
+}
+
+void j4_home()
+{
+  pinMode(stop_j4, INPUT_PULLUP);
+
+  const bool HOME_DIR = true;          // 방향 반대면 false로 변경
+  const unsigned long HOME_PPS = 1200;
+  const unsigned long TIMEOUT_MS = 8000;
+  const unsigned long STABLE_LOW_MS = 20;
+
+  // 이미 스위치가 눌려 있으면 반대 방향으로 살짝 빠짐
+  if (digitalRead(stop_j4) == LOW) {
+    j4_move(!HOME_DIR, HOME_PPS / 2);
+
+    unsigned long t_back = millis();
+    while (digitalRead(stop_j4) == LOW) {
+      if (millis() - t_back > 1000) {
+        j4_stop();
+        return;
+      }
+    }
+
+    j4_stop();
+    delay(50);
+  }
+
+  // 홈 방향으로 이동
+  j4_move(HOME_DIR, HOME_PPS);
+
+  unsigned long t0 = millis();
+  unsigned long low_start = 0;
+
+  while (true) {
+    if (digitalRead(stop_j4) == LOW) {
+      if (low_start == 0) {
+        low_start = millis();
+      }
+
+      if (millis() - low_start >= STABLE_LOW_MS) {
+        j4_stop();
+        return;
+      }
+    } else {
+      low_start = 0;
+    }
+
+    if (millis() - t0 > TIMEOUT_MS) {
+      j4_stop();
+      return;
+    }
+  }
+}
+// ============================================================================
+// J1 / J3 Open-loop 함수
+// - 엔코더 미사용
+// - 기존 move_j1(), move_j3(), j1stepPulse(), j3stepPulse() 수정 없음
+// - Timer1, Timer4를 임시로 빌려 쓰고, stop 시 기존 ISR로 복구
+// ============================================================================
+
+// -------------------- J1 open-loop state --------------------
+static volatile bool j1_ol_run = false;
+static volatile bool j1_ol_pulse_state = LOW;
+static volatile long j1_ol_target_steps = 0;
+static volatile long j1_ol_step_count = 0;
+static volatile bool j1_ol_done = false;
+
+static void j1_ol_set_pps(unsigned long pps)
+{
+  if (pps < 1) pps = 1;
+
+  unsigned long isr_us = 1000000UL / (2UL * pps);
+
+  // 너무 빠른 인터럽트 방지
+  if (isr_us < 50) isr_us = 50;
+
+  noInterrupts();
+  Timer1.setPeriod(isr_us);
+  interrupts();
+}
+
+static void j1_ol_stepPulse()
+{
+  if (!j1_ol_run) {
+    digitalWrite(j1_pul, LOW);
+    return;
+  }
+
+  digitalWrite(j1_pul, j1_ol_pulse_state);
+
+  // HIGH가 되는 순간을 1 step으로 계산
+  if (j1_ol_pulse_state == HIGH) {
+    j1_ol_step_count++;
+
+    if (j1_ol_target_steps > 0 &&
+        j1_ol_step_count >= j1_ol_target_steps) {
+      j1_ol_run = false;
+      j1_ol_done = true;
+      j1_ol_pulse_state = LOW;
+      digitalWrite(j1_pul, LOW);
+      return;
+    }
+  }
+
+  j1_ol_pulse_state = !j1_ol_pulse_state;
+}
+
+void j1_ol_move(bool dir, unsigned long pps)
+{
+  pinMode(j1_pul, OUTPUT);
+  pinMode(j1_dir, OUTPUT);
+  pinMode(j1_en, OUTPUT);
+
+  // 현재 기존 코드 기준 J1 enable은 HIGH가 동작
+  digitalWrite(j1_en, HIGH);
+
+  // 방향은 실제 동작 보고 반대면 HIGH/LOW만 뒤집으면 됨
+  digitalWrite(j1_dir, dir ? HIGH : LOW);
+  digitalWrite(j1_pul, LOW);
+  delayMicroseconds(20);
+
+  noInterrupts();
+  j1_run = false;              // 기존 PID용 j1_run 정지
+  j1pulseState = LOW;
+
+  j1_ol_run = false;
+  j1_ol_pulse_state = LOW;
+  j1_ol_target_steps = 0;      // 0이면 연속 구동
+  j1_ol_step_count = 0;
+  j1_ol_done = false;
+  interrupts();
+
+  Timer1.stop();
+  Timer1.detachInterrupt();
+  Timer1.attachInterrupt(j1_ol_stepPulse);
+
+  j1_ol_set_pps(pps);
+
+  noInterrupts();
+  j1_ol_run = true;
+  interrupts();
+
+  Timer1.start();
+}
+
+void j1_ol_stop(bool disable_after)
+{
+  noInterrupts();
+  j1_ol_run = false;
+  j1_ol_pulse_state = LOW;
+  j1_ol_target_steps = 0;
+  j1_ol_step_count = 0;
+  j1_ol_done = false;
+  interrupts();
+
+  digitalWrite(j1_pul, LOW);
+
+  Timer1.stop();
+  Timer1.detachInterrupt();
+
+  // 기존 엔코더 PID용 ISR 복구
+  Timer1.attachInterrupt(j1stepPulse);
+
+  if (disable_after) {
+    digitalWrite(j1_en, LOW);
+  }
+}
+
+bool j1_ol_move_steps(bool dir,
+                      long steps,
+                      unsigned long pps,
+                      unsigned long timeout_ms)
+{
+  if (steps <= 0) {
+    return true;
+  }
+
+  pinMode(j1_pul, OUTPUT);
+  pinMode(j1_dir, OUTPUT);
+  pinMode(j1_en, OUTPUT);
+
+  digitalWrite(j1_en, HIGH);
+  digitalWrite(j1_dir, dir ? HIGH : LOW);
+  digitalWrite(j1_pul, LOW);
+  delayMicroseconds(20);
+
+  noInterrupts();
+  j1_run = false;
+  j1pulseState = LOW;
+
+  j1_ol_run = false;
+  j1_ol_pulse_state = LOW;
+  j1_ol_target_steps = steps;
+  j1_ol_step_count = 0;
+  j1_ol_done = false;
+  interrupts();
+
+  Timer1.stop();
+  Timer1.detachInterrupt();
+  Timer1.attachInterrupt(j1_ol_stepPulse);
+
+  j1_ol_set_pps(pps);
+
+  noInterrupts();
+  j1_ol_run = true;
+  interrupts();
+
+  Timer1.start();
+
+  unsigned long t0 = millis();
+
+  while (true) {
+    if (j1_ol_done) {
+      j1_ol_stop(false);
+      return true;
+    }
+
+    if (millis() - t0 > timeout_ms) {
+      j1_ol_stop(false);
+      return false;
+    }
+  }
+}
+
+bool j1_ol_move_deg(float delta_joint_deg,
+                    unsigned long pps,
+                    unsigned long timeout_ms)
+{
+  long steps = (long)(
+    fabs(delta_joint_deg) *
+    (float)j1_gear *
+    (float)PULSES_PER_REV / 360.0f
+  );
+
+  bool dir = (delta_joint_deg >= 0);
+
+  return j1_ol_move_steps(dir, steps, pps, timeout_ms);
+}
+
+
+// -------------------- J3 open-loop state --------------------
+static volatile bool j3_ol_run = false;
+static volatile bool j3_ol_pulse_state = LOW;
+static volatile long j3_ol_target_steps = 0;
+static volatile long j3_ol_step_count = 0;
+static volatile bool j3_ol_done = false;
+
+static void j3_ol_set_pps(unsigned long pps)
+{
+  if (pps < 1) pps = 1;
+
+  unsigned long isr_us = 1000000UL / (2UL * pps);
+
+  // 너무 빠른 인터럽트 방지
+  if (isr_us < 50) isr_us = 50;
+
+  noInterrupts();
+  Timer4.setPeriod(isr_us);
+  interrupts();
+}
+
+static void j3_ol_stepPulse()
+{
+  if (!j3_ol_run) {
+    digitalWrite(j3_pul, LOW);
+    return;
+  }
+
+  digitalWrite(j3_pul, j3_ol_pulse_state);
+
+  // HIGH가 되는 순간을 1 step으로 계산
+  if (j3_ol_pulse_state == HIGH) {
+    j3_ol_step_count++;
+
+    if (j3_ol_target_steps > 0 &&
+        j3_ol_step_count >= j3_ol_target_steps) {
+      j3_ol_run = false;
+      j3_ol_done = true;
+      j3_ol_pulse_state = LOW;
+      digitalWrite(j3_pul, LOW);
+      return;
+    }
+  }
+
+  j3_ol_pulse_state = !j3_ol_pulse_state;
+}
+
+void j3_ol_move(bool dir, unsigned long pps)
+{
+  pinMode(j3_pul, OUTPUT);
+  pinMode(j3_dir, OUTPUT);
+  pinMode(j3_en, OUTPUT);
+
+  // 현재 기존 코드 기준 J3 enable은 HIGH가 동작
+  digitalWrite(j3_en, HIGH);
+
+  // 방향은 실제 동작 보고 반대면 HIGH/LOW만 뒤집으면 됨
+  digitalWrite(j3_dir, dir ? HIGH : LOW);
+  digitalWrite(j3_pul, LOW);
+  delayMicroseconds(20);
+
+  noInterrupts();
+  j3_run = false;              // 기존 PID용 j3_run 정지
+  j3pulseState = LOW;
+
+  j3_ol_run = false;
+  j3_ol_pulse_state = LOW;
+  j3_ol_target_steps = 0;      // 0이면 연속 구동
+  j3_ol_step_count = 0;
+  j3_ol_done = false;
+  interrupts();
+
+  Timer4.stop();
+  Timer4.detachInterrupt();
+  Timer4.attachInterrupt(j3_ol_stepPulse);
+
+  j3_ol_set_pps(pps);
+
+  noInterrupts();
+  j3_ol_run = true;
+  interrupts();
+
+  Timer4.start();
+}
+
+void j3_ol_stop(bool disable_after)
+{
+  noInterrupts();
+  j3_ol_run = false;
+  j3_ol_pulse_state = LOW;
+  j3_ol_target_steps = 0;
+  j3_ol_step_count = 0;
+  j3_ol_done = false;
+  interrupts();
+
+  digitalWrite(j3_pul, LOW);
+
+  Timer4.stop();
+  Timer4.detachInterrupt();
+
+  // 기존 엔코더 PID용 ISR 복구
+  Timer4.attachInterrupt(j3stepPulse);
+
+  if (disable_after) {
+    digitalWrite(j3_en, LOW);
+  }
+}
+
+bool j3_ol_move_steps(bool dir,
+                      long steps,
+                      unsigned long pps,
+                      unsigned long timeout_ms)
+{
+  if (steps <= 0) {
+    return true;
+  }
+
+  pinMode(j3_pul, OUTPUT);
+  pinMode(j3_dir, OUTPUT);
+  pinMode(j3_en, OUTPUT);
+
+  digitalWrite(j3_en, HIGH);
+  digitalWrite(j3_dir, dir ? HIGH : LOW);
+  digitalWrite(j3_pul, LOW);
+  delayMicroseconds(20);
+
+  noInterrupts();
+  j3_run = false;
+  j3pulseState = LOW;
+
+  j3_ol_run = false;
+  j3_ol_pulse_state = LOW;
+  j3_ol_target_steps = steps;
+  j3_ol_step_count = 0;
+  j3_ol_done = false;
+  interrupts();
+
+  Timer4.stop();
+  Timer4.detachInterrupt();
+  Timer4.attachInterrupt(j3_ol_stepPulse);
+
+  j3_ol_set_pps(pps);
+
+  noInterrupts();
+  j3_ol_run = true;
+  interrupts();
+
+  Timer4.start();
+
+  unsigned long t0 = millis();
+
+  while (true) {
+    if (j3_ol_done) {
+      j3_ol_stop(false);
+      return true;
+    }
+
+    if (millis() - t0 > timeout_ms) {
+      j3_ol_stop(false);
+      return false;
+    }
+  }
+}
+
+bool j3_ol_move_deg(float delta_joint_deg,
+                    unsigned long pps,
+                    unsigned long timeout_ms)
+{
+  long steps = (long)(
+    fabs(delta_joint_deg) *
+    (float)j3_gear *
+    (float)PULSES_PER_REV / 360.0f
+  );
+
+  bool dir = (delta_joint_deg >= 0);
+
+  return j3_ol_move_steps(dir, steps, pps, timeout_ms);
 }

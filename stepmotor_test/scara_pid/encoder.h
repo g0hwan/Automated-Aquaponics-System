@@ -38,6 +38,9 @@ extern volatile bool j4pulseState;
 
 extern volatile long pulseInterval;
 
+static const unsigned long J1_DEFAULT_MAX_PPS = 2500UL;
+static const unsigned long J3_DEFAULT_MAX_PPS = 5500UL;
+
 float encoder_getAngleDeg(const encod* e);
 
 void set_tim();
@@ -45,8 +48,9 @@ void set_int();
 ///////////////////////////////////////////////////////////////////////////////////
 void j1stepPulse();
 void j1EncoderA();
-bool move_j1(float targetAngle, float tolDeg = 0.3f);   
+bool move_j1(float targetAngle, unsigned long max_pps = J1_DEFAULT_MAX_PPS , float tolDeg = 0.3f);   
 bool move_j1_wait(float targetAngle,
+                  unsigned long max_pps = J1_DEFAULT_MAX_PPS,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
                   unsigned long timeout_ms = 80000);
@@ -64,14 +68,13 @@ bool move_j2(float deg, unsigned long pps);
 ///////////////////////////////////////////////////////////////////////////////////
 void j3stepPulse();
 void j3EncoderA();
-bool move_j3(float targetAngle, float tolDeg = 0.1f);
+bool move_j3(float targetAngle, unsigned long max_pps = J3_DEFAULT_MAX_PPS , float tolDeg = 0.3f);
 bool move_j3_wait(float targetAngle,
+                  unsigned long max_pps = J3_DEFAULT_MAX_PPS,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
                   unsigned long timeout_ms = 8000);
 void enc_reset_j3();
-bool waitStableLow(uint8_t pin, unsigned long stable_ms);
-static bool waitStableHigh(uint8_t pin, unsigned long stable_ms, unsigned long timeout_ms = 1000);
 void j3_home_stop_on_switch(bool dir_to_switch, unsigned long pps);
 ///////////////////////////////////////////////////////////////////////////////////
 void j4stepPulse();
@@ -84,6 +87,7 @@ void move_j4_wait(float targetAngle,
 bool move_j4(float targetAngle, float tolDeg = 0.3f);
 void enc_reset_j4();
 bool j4_home_stop_on_switch_safe(bool dir_to_switch, unsigned long pps);
+
 ///////////////////////////////////////////////////////////////////////////////////
 void j1_enable(bool on);
 void j3_enable(bool on);
@@ -104,7 +108,7 @@ bool moveRail_untilStop(bool dir, unsigned long pps,
                         uint8_t stop_pin,
                         unsigned long timeout_ms = 80000);
 
-
+/*
 // ===== J4 open-loop (엔코더 미사용) =====
 void j4_set_home_zero_deg(float deg = 0.0f);
 float j4_get_openloop_deg();
@@ -112,5 +116,32 @@ bool move_j4_openloop(float target_deg, unsigned long pps = 1200);
 bool move_j4_openloop_rel(float delta_deg, unsigned long pps = 1200);
 void stop_j4_openloop(bool disable_after = false);
 bool j4_home_openloop(bool dir_to_switch, unsigned long pps = 1200);
+*/
+void j4stepPulse();
+void j4_move(bool dir, unsigned long pps);
+void j4_stop();
+void j4_home();
+
+// ===== J1 open-loop, 엔코더 미사용 =====
+void j1_ol_move(bool dir, unsigned long pps);
+void j1_ol_stop(bool disable_after = false);
+bool j1_ol_move_steps(bool dir,
+                      long steps,
+                      unsigned long pps,
+                      unsigned long timeout_ms = 8000);
+bool j1_ol_move_deg(float delta_joint_deg,
+                    unsigned long pps = 2000,
+                    unsigned long timeout_ms = 8000);
+
+// ===== J3 open-loop, 엔코더 미사용 =====
+void j3_ol_move(bool dir, unsigned long pps);
+void j3_ol_stop(bool disable_after = false);
+bool j3_ol_move_steps(bool dir,
+                      long steps,
+                      unsigned long pps,
+                      unsigned long timeout_ms = 8000);
+bool j3_ol_move_deg(float delta_joint_deg,
+                    unsigned long pps = 3000,
+                    unsigned long timeout_ms = 8000);
 
 #endif

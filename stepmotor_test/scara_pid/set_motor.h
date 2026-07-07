@@ -2,6 +2,7 @@
 #define SET_MOTOR_H
 
 #include <Arduino.h>
+#include <Servo.h>
 
 //베이스
 #define j1_pul  4
@@ -10,13 +11,13 @@
 #define j1_A    18
 #define j1_B    8
 #define j1_Z    9
-#define stop_j1 51
+#define stop_j1 37
 
 //z축
 #define STEP_PIN  36
 #define DIR_PIN   33 //  27에서 변경
 #define j2_en     28
-#define BK_PIN  21
+//#define BK_PIN  21
 #define ALM_PIN   29
 #define stop_z    3
 
@@ -36,7 +37,7 @@
 #define j4_A    2
 #define j4_B    22
 #define j4_Z    25
-#define stop_j4 48 // == 53으로 돼 있음
+#define stop_j4 34 // == 53으로 돼 있음
 
 //리니어 레일
 #define rail_pul  41
@@ -44,6 +45,7 @@
 #define rail_en   43
 #define stop_rail 44
 #define stop2_rail 40
+#define stop3_rail 49
 
 //릴레이 핀 설정
 #define num1 45
@@ -74,7 +76,7 @@ static inline void motor_pin()
   pinMode(j1_A, INPUT_PULLUP); //j1 엔코더 설정
   pinMode(j1_B, INPUT_PULLUP);
 
-  pinMode(BK_PIN, INPUT_PULLUP); //j2 엔코더 설정
+//  pinMode(BK_PIN, INPUT_PULLUP); //j2 엔코더 설정
   pinMode(ALM_PIN, INPUT_PULLUP);
   pinMode(j2_en, OUTPUT);
   digitalWrite(j2_en, LOW); 
@@ -93,6 +95,7 @@ static inline void motor_pin()
   pinMode(stop_j4, INPUT_PULLUP);
   pinMode(stop_rail, INPUT_PULLUP);
   pinMode(stop2_rail, INPUT_PULLUP);
+  pinMode(stop3_rail, INPUT_PULLUP);
 
   pinMode(num1, OUTPUT);
   pinMode(num2, OUTPUT);
@@ -108,7 +111,6 @@ static inline void motor_pin()
 
   digitalWrite(rail_pul, LOW);
   digitalWrite(rail_en, HIGH);  
-
 }
 
 #endif

@@ -6,7 +6,9 @@
 uint8_t ssf = 0;
 uint8_t smf = 0;
 uint8_t crf = 0;
+uint8_t hm = 0;
 uint16_t uv = 0;
+
 
 uint16_t wcnt = 0;
 uint8_t ulf  = 0;
@@ -17,6 +19,7 @@ uint8_t uef  = 0;
 uint8_t wef  = 0;
 uint8_t ff   = 0;
 
+static uint8_t prev_hm = 0;
 static uint8_t prev_ssf = 0;
 static uint8_t prev_crf = 0;
 
@@ -35,6 +38,7 @@ void setflag()
   setSmf(0);
   setCrf(0);
   setUv(0);
+  setHm(0);
 
   setWcnt(0);
   setUlf(0);
@@ -91,6 +95,10 @@ static void handleFrame(uint8_t id, const uint8_t* data, uint8_t len) {
 
     case PID_CRF:
       if (len == 1) crf = data[0];
+      break;
+
+    case PID_HM:
+      if (len == 1) hm = data[0];
       break;
 
     case PID_UV:
@@ -230,6 +238,7 @@ uint8_t getSsf(void) { return ssf; }
 uint8_t getSmf(void) { return smf; }
 uint8_t getCrf(void) { return crf; }
 uint16_t getUv(void) { return uv; }
+uint8_t getHm(void) { return hm; }
 
 uint8_t getWcnt(void) { return wcnt; }
 uint8_t getUlf(void)  { return ulf; }
@@ -247,6 +256,7 @@ void setSsf(uint8_t value) { ssf = value; }
 void setSmf(uint8_t value) { smf = value; }
 void setCrf(uint8_t value) { crf = value; }
 void setUv(uint16_t value) { uv = value; }
+void setHm(uint8_t value) { hm = value; }
 
 void setWcnt(uint8_t value) { wcnt = value; }
 void setUlf(uint8_t value)  { ulf = value; }
@@ -262,6 +272,7 @@ void setFf(uint8_t value)   { ff = value; }
 // =========================
 uint8_t getPrevSsf(void) { return prev_ssf; }
 uint8_t getPrevCrf(void) { return prev_crf; }
+uint8_t getPrevHm(void) { return prev_hm; }
 
 uint8_t getPrevWcnt(void) { return prev_wcnt; }
 uint8_t getPrevUlf(void)  { return prev_ulf; }
@@ -275,6 +286,7 @@ uint8_t getPrevFf(void)   { return prev_ff; }
 void updatePrevFlags(void) {
   prev_ssf = ssf;
   prev_crf = crf;
+  prev_hm = hm;
 
   prev_wcnt = wcnt;
   prev_ulf  = ulf;
@@ -293,6 +305,7 @@ void sendSsf(void)  { sendU8(PID_SSF, ssf); }
 void sendSmf(void)  { sendU8(PID_SMF, smf); }
 void sendCrf(void)  { sendU8(PID_CRF, crf); }
 void sendUv(void)   { sendU16(PID_UV, uv); }
+void sendHm(void) { sendU8(PID_HM, hm); }
 
 void sendWcnt(void) { sendU8(PID_WCNT, wcnt); }
 void sendUlf(void)  { sendU8(PID_ULF, ulf); }
