@@ -1,0 +1,373 @@
+import cv2
+import numpy as np
+
+# ==================================================
+# 1. 기본 설정
+# ==================================================
+
+CAMERA_INDEX = 0
+
+CALIB_PATH = r"/home/kkh/Automated-Aquaponics-System/first_convey/cam/camera_calib.npz"
+
+# 클릭 지점 주변 몇 픽셀을 평균낼지
+SAMPLE_RADIUS = 5
+
+# HSV 허용 오차 초기값
+H_TOL = 15
+S_TOL = 60
+V_TOL = 60
+
+# 최소 마스크 영역 표시 기준
+MIN_AREA = 50
+
+# 전역 변수
+clicked_hsv = None
+clicked_bgr = None
+mouse_x, mouse_y = -1, -1
+
+
+# ==================================================
+# 2. 캘리브레이션 파일 로드
+# ==================================================
+
+def load_camera_calibration(calib_path):
+    data = np.load(calib_path)
+
+    print("Calibration file keys:", data.files)
+
+    camera_matrix_keys = [
+        "camera_matrix", "mtx", "K", "cam_mtx", "cameraMatrix"
+    ]
+
+    dist_coeff_keys = [
+        "dist_coeffs", "dist", "D", "distortion", "distCoeffs"
+    ]
+
+    camera_matrix = None
+    dist_coeffs = None
+
+    for key in camera_matrix_keys:
+        if key in data.files:
+            camera_matrix = data[key]
+            break
+
+    for key in dist_coeff_keys:
+        if key in data.files:
+            dist_coeffs = data[key]
+            break
+
+    if camera_matrix is None:
+        raise KeyError("카메라 행렬을 찾을 수 없습니다. npz 파일 key를 확인하세요.")
+
+    if dist_coeffs is None:
+        raise KeyError("왜곡 계수를 찾을 수 없습니다. npz 파일 key를 확인하세요.")
+
+    return camera_matrix, dist_coeffs
+
+
+# ==================================================
+# 3. 왜곡 보정 함수
+# ==================================================
+
+def undistort_frame(frame, camera_matrix, dist_coeffs):
+    h, w = frame.shape[:2]
+
+    new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(
+        camera_matrix,
+        dist_coeffs,
+        (w, h),
+        1,
+        (w, h)
+    )
+
+    undistorted = cv2.undistort(
+        frame,
+        camera_matrix,
+        dist_coeffs,
+        None,
+        new_camera_matrix
+    )
+
+    return undistorted
+
+
+# ==================================================
+# 4. 마우스 클릭 콜백 함수
+# ==================================================
+
+def mouse_callback(event, x, y, flags, param):
+    global clicked_hsv, clicked_bgr, mouse_x, mouse_y
+
+    if event == cv2.EVENT_LBUTTONDOWN:
+        frame = param["frame"]
+
+        h, w = frame.shape[:2]
+
+        x1 = max(0, x - SAMPLE_RADIUS)
+        x2 = min(w, x + SAMPLE_RADIUS)
+        y1 = max(0, y - SAMPLE_RADIUS)
+        y2 = min(h, y + SAMPLE_RADIUS)
+
+        sample = frame[y1:y2, x1:x2]
+
+        if sample.size == 0:
+            return
+
+        # BGR 평균
+        avg_bgr = np.mean(sample.reshape(-1, 3), axis=0).astype(np.uint8)
+
+        # BGR → HSV 변환
+        avg_bgr_pixel = np.uint8([[avg_bgr]])
+        avg_hsv = cv2.cvtColor(avg_bgr_pixel, cv2.COLOR_BGR2HSV)[0][0]
+
+        clicked_bgr = avg_bgr
+        clicked_hsv = avg_hsv
+        mouse_x, mouse_y = x, y
+
+        print("================================")
+        print(f"Clicked Position: x={x}, y={y}")
+        print(f"Average BGR: {clicked_bgr}")
+        print(f"Average HSV: {clicked_hsv}")
+        print("================================")
+
+
+# ==================================================
+# 5. HSV 범위 생성 함수
+# ==================================================
+
+def make_hsv_range(center_hsv, h_tol, s_tol, v_tol):
+    h, s, v = int(center_hsv[0]), int(center_hsv[1]), int(center_hsv[2])
+
+    lower = np.array([
+        max(0, h - h_tol),
+        max(0, s - s_tol),
+        max(0, v - v_tol)
+    ], dtype=np.uint8)
+
+    upper = np.array([
+        min(179, h + h_tol),
+        min(255, s + s_tol),
+        min(255, v + v_tol)
+    ], dtype=np.uint8)
+
+    return lower, upper
+
+
+# ==================================================
+# 6. 마스크 후처리 함수
+# ==================================================
+
+def clean_mask(mask):
+    kernel = np.ones((5, 5), np.uint8)
+
+    # 작은 점 노이즈 제거
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    # 끊어진 영역 연결
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    return mask
+
+
+# ==================================================
+# 7. 마스크 영역 표시 함수
+# ==================================================
+
+def draw_detected_area(frame, mask):
+    result = frame.copy()
+
+    contours, _ = cv2.findContours(
+        mask,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    count = 0
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+
+        if area < MIN_AREA:
+            continue
+
+        count += 1
+
+        x, y, w, h = cv2.boundingRect(contour)
+
+        cv2.rectangle(
+            result,
+            (x, y),
+            (x + w, y + h),
+            (0, 255, 0),
+            2
+        )
+
+        M = cv2.moments(contour)
+
+        if M["m00"] != 0:
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+
+            cv2.circle(result, (cx, cy), 4, (0, 0, 255), -1)
+
+    cv2.putText(
+        result,
+        f"Detected Areas: {count}",
+        (30, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1.0,
+        (0, 0, 255),
+        2
+    )
+
+    return result, count
+
+
+# ==================================================
+# 8. 메인 함수
+# ==================================================
+
+def main():
+    global clicked_hsv
+
+    camera_matrix, dist_coeffs = load_camera_calibration(CALIB_PATH)
+
+    print("Camera Matrix:")
+    print(camera_matrix)
+
+    print("Distortion Coefficients:")
+    print(dist_coeffs)
+
+    cap = cv2.VideoCapture(CAMERA_INDEX)
+
+    if not cap.isOpened():
+        print("카메라를 열 수 없습니다.")
+        return
+
+    cv2.namedWindow("Undistorted Frame")
+    cv2.namedWindow("HSV Mask")
+    cv2.namedWindow("Detected Green Area")
+    cv2.namedWindow("Extracted Green Only")
+
+    while True:
+        ret, frame = cap.read()
+
+        if not ret:
+            print("프레임을 읽을 수 없습니다.")
+            break
+
+        # 왜곡 보정
+        undistorted = undistort_frame(frame, camera_matrix, dist_coeffs)
+
+        # 마우스 콜백에 현재 프레임 전달
+        cv2.setMouseCallback(
+            "Undistorted Frame",
+            mouse_callback,
+            {"frame": undistorted}
+        )
+
+        display_frame = undistorted.copy()
+
+        # 클릭 위치 표시
+        if mouse_x >= 0 and mouse_y >= 0:
+            cv2.circle(display_frame, (mouse_x, mouse_y), 6, (0, 0, 255), -1)
+
+        # 아직 클릭하지 않았으면 원본만 표시
+        if clicked_hsv is None:
+            cv2.putText(
+                display_frame,
+                "Click green sprout area",
+                (30, 40),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (0, 0, 255),
+                2
+            )
+
+            cv2.imshow("Undistorted Frame", display_frame)
+
+            key = cv2.waitKey(1) & 0xFF
+
+            if key == ord('q'):
+                break
+
+            continue
+
+        # 클릭된 HSV 기준으로 범위 생성
+        lower_hsv, upper_hsv = make_hsv_range(
+            clicked_hsv,
+            H_TOL,
+            S_TOL,
+            V_TOL
+        )
+
+        hsv = cv2.cvtColor(undistorted, cv2.COLOR_BGR2HSV)
+
+        # HSV 색상 영역 검출
+        mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+
+        # 마스크 후처리
+        mask_clean = clean_mask(mask)
+
+        # 검출 영역 표시
+        detected_frame, count = draw_detected_area(undistorted, mask_clean)
+
+        # 초록 영역만 추출
+        extracted = cv2.bitwise_and(
+            undistorted,
+            undistorted,
+            mask=mask_clean
+        )
+
+        # 현재 HSV 범위 텍스트 표시
+        cv2.putText(
+            display_frame,
+            f"HSV: {clicked_hsv.tolist()}",
+            (30, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
+        )
+
+        cv2.putText(
+            display_frame,
+            f"Lower: {lower_hsv.tolist()}",
+            (30, 75),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2
+        )
+
+        cv2.putText(
+            display_frame,
+            f"Upper: {upper_hsv.tolist()}",
+            (30, 105),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2
+        )
+
+        cv2.imshow("Undistorted Frame", display_frame)
+        cv2.imshow("HSV Mask", mask_clean)
+        cv2.imshow("Detected Green Area", detected_frame)
+        cv2.imshow("Extracted Green Only", extracted)
+
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord('q'):
+            break
+
+        # r 누르면 다시 클릭해서 색상 재설정
+        if key == ord('r'):
+            clicked_hsv = None
+            print("HSV 선택 초기화. 다시 새싹 영역을 클릭하세요.")
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
