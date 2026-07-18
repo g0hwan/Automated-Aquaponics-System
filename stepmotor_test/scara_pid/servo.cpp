@@ -43,7 +43,7 @@ void smove(uint8_t degree)
 
 void setServo()
 {
-  smove(75);
+  smove(75); // 기본 상태
 }
 
 void grip(bool x)

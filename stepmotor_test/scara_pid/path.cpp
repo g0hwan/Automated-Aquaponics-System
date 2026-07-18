@@ -105,17 +105,19 @@ void sect1(void) {
     setSmf(1);// 구동 중이므로 status플레그 셋
     sendSmf(); // 상태 전송
   }
+  
   enc_reset_j3();
-  move_j3_wait(155+45+5);
+  move_j3_wait(155+45+5-360+75);
+  //delay(100000);
   j1_home_stop_on_switch(false, 3200);
   delay(1300);
   enc_reset_j1();
   delay(10);
-  move_j1_wait(55);
+  move_j1_wait(45,1500);
   enc_reset_j1();
   delay(500);
 
-  j4_move(true, 2000);
+  j4_move(true, 500);
   delay(140);
   j4_stop();
   grip(true);//그립 펴고
@@ -128,76 +130,107 @@ void sect1(void) {
   //delay(300);
   move_j2_cm(1); // 살짝 올라가서
   enc_reset_j1();
-  move_j1_wait(-15, 2000); // 뒤로 좀 빼고
-  delay(10);
-  move_j2_cm(12); // 올라가고
+  delay(100);
+  move_j1_wait(-20, 1000); // 뒤로 좀 빼고
+  delay(200);
+  enc_reset_j1();
+  move_j2_cm(10); // 올라가고
   //move_j1_wait(-10);
   //move_j2_cm(3);
 
   setCrf(0); // 직교로봇 리셋
   sendCrf();
-  
   j4_move(false, 2000);
   delay(140);
   j4_stop();
+  move_j2_cm(3);
   enc_reset_j3();
-  move_j3_wait(30);
-  uv++;
-  j1_home_stop_on_switch(true, 3200);
-  move_j2_cm(1.5);
-  if (uv == 0)
+  delay(200);
+  move_j3_wait(30,2000);
+  enc_reset_j3();
+  delay(20);
+  //uv++;
+  j1_home_stop_on_switch(true, 1200);
+  delay(500);
+  enc_reset_j1();
+  
+  
+  if (uv == 1)
   {
     moveRail_untilStop(false, 4500, stop3_rail);
     moveRail(1500,1);   
     delay(1000);
     stopRail();
-    enc_reset_j1();
-    move_j1_wait(55);
-    enc_reset_j1();
-    enc_reset_j3();
-    move_j3_wait(10);
-    enc_reset_j3();
-    j4_move(true, 780);
-    moveRail(2700,1);   
+    move_j2_cm(-1.5);
+    
+    j4_move(false, 830);
     delay(2000);
     j4_stop();
-    moveRail(1300,0);
+
+    enc_reset_j3();
+    move_j3_wait(-20);
+    enc_reset_j3();
+    
+    enc_reset_j1();
+    move_j1_wait(45, 2500);
+    enc_reset_j1();
+    
+    
+    moveRail(2600,1);   
+    delay(2000);
+    
+    moveRail(1200,0);
     delay(1400);
     stopRail();
-    move_j2_cm(-3.2);
+    move_j2_cm(-3.7);
     grip(true);
     delay(10);
-    move_j2_cm(3.2);
+    move_j2_cm(3.7);
     j1_home_stop_on_switch(true, 3500);
+    delay(500);
     uv++;
   }
-  else 
+  else if(uv == 0)
   {
-    moveRail_untilStop(false, 4000, stop3_rail);
+    moveRail_untilStop(false, 4500, stop3_rail);
     moveRail(2000,0);   
     delay(1000);
     stopRail();
-    enc_reset_j1();
-    move_j1_wait(55);
-    enc_reset_j1();
+    move_j2_cm(-1.5);
     enc_reset_j3();
-    move_j3_wait(10);
+    move_j3_wait(-20);
+    delay(200);
     enc_reset_j3();
-    j4_move(true, 780);
-    moveRail(1300,0);   
+    enc_reset_j1();
+    move_j1_wait(45, 2000);
+    delay(80);
+    enc_reset_j1();
+    j4_move(false, 800);
+    moveRail(650,0);   
     delay(2000);
     j4_stop();
-    moveRail(1500,1);
-    delay(2000);
+    //moveRail(700,1);
+    //delay(2000);
     stopRail();
-    move_j2_cm(-3.2);
+    move_j2_cm(-3.7);
     grip(true);
     delay(10);
-    move_j2_cm(3.2);
+    j4_move(true, 1500);
+    delay(300);
+    j4_move(false, 1500);
+    delay(300);
+    j4_move(true, 1500);
+    delay(300);
+    j4_move(false, 1500);
+    delay(300);
+    j4_stop();
+    move_j2_cm(3.7);
     j1_home_stop_on_switch(true, 3500);
+    enc_reset_j1();
+    delay(500);
     uv++;
   }
-
+  
   setSmf(0); // 스카라 구동 끝
   sendSmf();
   

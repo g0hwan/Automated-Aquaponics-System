@@ -113,7 +113,7 @@ void home()
 
   //delay(50);
   enc_reset_j3();
-  move_j3_wait(150, 5500);
+  move_j3_wait(170, 5500);
   enc_reset_j3();
   delay(100);
   //Serial.println("j3 back");
@@ -128,11 +128,11 @@ void home()
   Serial.println("j2 home");
 
   enc_reset_j1();
-  delay(5);
-  Serial.println("j1_back start");
+  delay(10);
+  //Serial.println("j1_back start");
   move_j1_wait(-30);
   //Serial.println("j1_back");
-  //delay(1000);
+  delay(200);
 
   j1_home_stop_on_switch(false, 2000);
   delay(500);
@@ -162,7 +162,7 @@ void home()
   stopRail();
   delay(100);
 
-  moveRail_untilStop(true, 3000, stop_rail);
+  moveRail_untilStop(true, 4300, stop_rail);
   delay(100);
 
   enc_reset_all();
