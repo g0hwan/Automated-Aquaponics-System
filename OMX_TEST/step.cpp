@@ -30,12 +30,12 @@ static long mmToPulses(float mm)
 
 void initializeRail()
 {
-  digitalWrite(PUL_PIN, HIGH);
-  digitalWrite(DIR_PIN, LOW);
-
   pinMode(PUL_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(SW_PIN, INPUT_PULLUP);
+
+  digitalWrite(PUL_PIN, HIGH);
+  digitalWrite(DIR_PIN, LOW);
 
   Serial.println("[RAIL] INITIALIZED");
 }
@@ -153,6 +153,7 @@ bool homeRail()
       Serial.println(
         "[RAIL] LIMIT RELEASE FAILED"
       );
+
       return false;
     }
   }
@@ -179,6 +180,7 @@ bool homeRail()
       Serial.println(
         "[RAIL] HOMING TIMEOUT"
       );
+
       return false;
     }
 
@@ -203,10 +205,16 @@ bool homeRail()
 
   if (digitalRead(SW_PIN) == LOW)
   {
-    Serial.println("[RAIL] BACKOFF FAILED");
+    Serial.println(
+      "[RAIL] BACKOFF FAILED"
+    );
+
     return false;
   }
 
-  Serial.println("[RAIL] HOMING COMPLETE");
+  Serial.println(
+    "[RAIL] HOMING COMPLETE"
+  );
+
   return true;
 }
