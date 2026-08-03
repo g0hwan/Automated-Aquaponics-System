@@ -1,3 +1,4 @@
+// first_convey.c
 #include "stm32f4xx_hal.h"
 #include "first_convey.h"
 #include "board_pin.h"
@@ -6,9 +7,22 @@
 #include <stdio.h>
 
 extern TIM_HandleTypeDef  htim3; // htim3, huart2는 main.c에 실제로 생성(정의) 되어 있고, 여기서는 “그걸 가져다 쓰겠다”는 선언만 한 것(extern).
-extern UART_HandleTypeDef huart2;
 
-typedef enum { CONVEYOR_RUN = 0, CONVEYOR_STOP } ConveyorState;
+// 파종관련파라미터
+static volatile int32_t convey_remain = 0;
+static volatile bool    convey_moving = false;
+// 컨베이어 steps/mm (실측 후 조정)
+// 1600pulse / 20mm(한바퀴 거리) = 80
+#define CONVEY_AFTER_IR_MM  95.0f   // IR 감지 후 추가 이동 거리: 9.5cm
+static float g_con_steps_per_mm = 80.0f;
+static uint32_t g_con_run_hz = 6000;
+static bool ir_enabled = false;
+
+typedef enum {
+    CONVEYOR_RUN = 0,
+    CONVEYOR_POST_IR_MOVE,
+    CONVEYOR_STOP
+} ConveyorState;
 static ConveyorState state = CONVEYOR_RUN; 	// 현재 상태: 컨베이어 구동중
 static bool motor_running = false; 			// 이미 모터를 켰는지 기억하는 플래그
 
@@ -33,63 +47,147 @@ static void StepPWM_SetHz(uint32_t hz)      	// PWM 주파수 설정
   __HAL_TIM_SET_COUNTER(&htim3, 0);
 }
 
-static void Motor_SetDir(bool dir) // dir
-{
-  HAL_GPIO_WritePin(DIR_PORT, DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
-}
-static void Motor_Enable(bool en) // en
-{
-  HAL_GPIO_WritePin(EN_PORT, EN_PIN, en ? GPIO_PIN_SET : GPIO_PIN_RESET);
-}
-static void Motor_Start(uint32_t step_hz) // motor start
-{
-  StepPWM_SetHz(step_hz);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-}
-static void Motor_Stop(void) // motor stop
-{
-  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-}
+	//////////////////////////////////////////////// 컨베이어동작
+	void FirstConvey_SetIrEnabled(bool en)
+	{
+	    ir_enabled = en;
+	}
+	static void Motor_SetDir(bool dir) // dir
+	{
+	  HAL_GPIO_WritePin(CON_DIR_PORT, CON_DIR_PIN, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+	}
+	static void Motor_Enable(bool en) // en
+	{
+	  HAL_GPIO_WritePin(CON_EN_PORT, CON_EN_PIN, en ? GPIO_PIN_SET : GPIO_PIN_RESET);
+	}
+	static void Motor_Start(uint32_t step_hz) // motor start
+	{
+	  StepPWM_SetHz(step_hz);
+	  ////////// 컨베이어 파라미터 찾는용도
+	  // Update(ARR overflow) 인터럽트로 펄스 카운트하기 위해 Base IT도 시작
+	    __HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
+	    HAL_TIM_Base_Start_IT(&htim3);
+	  ///////////////////////////////////
+	  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	}
+	static void Motor_Stop(void) // motor stop
+	{
+	  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+	  HAL_TIM_Base_Stop_IT(&htim3); // 컨베이어 파라미터 찾는용도
+	}
+	void FirstConvey_SendPulses(uint32_t pulses) // 컨베이어 파라미터 찾는용도
+	{
+	    if (pulses == 0) return;
 
-static void Conveyor_Run(void) // 컨베이어 구동
-{
-  if (!motor_running)
-  {
-    Motor_SetDir(true);
-    Motor_Enable(true);
-    Motor_Start(2000);
-    motor_running = true;
-  }
+	    Motor_SetDir(true);
+	    Motor_Enable(true);
 
-  if (Sensor_IR_Detected())
-  {
-    Motor_Stop();
-    Motor_Enable(false);
-    motor_running = false;
-    state = CONVEYOR_STOP;
-  }
-}
+	    convey_remain = (int32_t)pulses;
+	    convey_moving = true;
 
-static void Conveyor_Stop(void) // 컨베이어 정지 -> 트레이 절대거리값 측정 후 출력
-{
-  uint16_t raw = Sensor_DMS80_ReadRawAvg(16);
-  uint32_t mv = (3300UL * raw) / 4095UL;
+	    Motor_Start(g_con_run_hz);
+	}
+	static void Conveyor_Run(void)
+	{
+	    if (!motor_running)
+	    {
+	        Motor_SetDir(true);
+	        Motor_Enable(true);
+	        Motor_Start(6000);
+	        motor_running = true;
+	    }
 
-  float v  = (3.3f * raw) / 4095.0f;
-  float cm = Sensor_DMS80_VoltageToCm(v);
+	    // IR 감지 즉시 정지하지 않고 80mm 추가 이동
+	    if (ir_enabled && Sensor_IR_Detected())
+	    {
+	        // 기존 연속 구동 PWM 정지
+	        Motor_Stop();
 
-  char buf[80];
-  int cm10 = (int)(cm * 10.0f);
-  int len = snprintf(buf, sizeof(buf),
-                     "raw=%u, %lumV, cm=%d.%d\r\n",
-                     raw, mv, cm10/10, cm10%10);
+	        motor_running = false;
+	        state = CONVEYOR_POST_IR_MOVE;
 
-  HAL_UART_Transmit(&huart2, (uint8_t*)buf, len, 100);
-  HAL_Delay(500);
-}
+	        // IR 감지 후 80mm 추가 이동
+	        FirstConvey_MoveDistance(CONVEY_AFTER_IR_MM);
+	    }
+	}
+	static void Conveyor_PostIrMove(void)
+	{
+	    if (FirstConvey_IsMoveDone())
+	    {
+	        Motor_Stop();
+	        Motor_Enable(false);
+	        motor_running = false;
+	        state = CONVEYOR_STOP;
+	    }
+	}
+	void FirstConvey_Reset(void)
+	{
+		state = CONVEYOR_RUN;
+		motor_running = false;
+		Motor_Stop();
+		Motor_Enable(false);
 
-void FirstConvey_Task(void) // 컨베이어 구동/정지 함수 (main에서 호출)
-{
-  if (state == CONVEYOR_RUN)  Conveyor_Run();
-  else                        Conveyor_Stop();
-}
+		convey_moving = false;
+		convey_remain = 0;
+
+		ir_enabled = false;
+	}
+	static void Conveyor_Stop(void) // 컨베이어 정지
+	{
+	}
+
+	void FirstConvey_Task(void)
+	{
+	    if (state == CONVEYOR_RUN)
+	        Conveyor_Run();
+	    else if (state == CONVEYOR_POST_IR_MOVE)
+	        Conveyor_PostIrMove();
+	    else
+	        Conveyor_Stop();
+	}
+
+	bool FirstConvey_IsStopped(void)
+	{
+	  return (state == CONVEYOR_STOP);
+	}
+
+//////////////// 파종할때 컨베이어 움직임
+	void FirstConvey_MoveDistance(float mm)
+	{
+	    if (mm <= 0.0f) return;
+	    int32_t steps = (int32_t)(mm * g_con_steps_per_mm);
+	    Motor_SetDir(true);
+	    Motor_Enable(true);
+	    convey_remain = steps;
+	    convey_moving = true;
+	    Motor_Start(g_con_run_hz);
+	}
+
+	bool FirstConvey_IsMoveDone(void)
+	{
+	    return !convey_moving;
+	}
+
+	void FirstConvey_ForceStop(void)
+	{
+	    Motor_Stop();
+	    Motor_Enable(false);
+	    convey_moving = false;
+	    convey_remain = 0;
+	    motor_running = false;
+	    state = CONVEYOR_STOP;
+	}
+
+	void FirstConvey_OnTimPeriodElapsed(TIM_HandleTypeDef *htim)
+	{
+	    if (htim->Instance == TIM3 && convey_moving) {
+	        if (convey_remain > 0) {
+	            convey_remain--;
+	            if (convey_remain == 0) {
+	                Motor_Stop();
+	                Motor_Enable(false);
+	                convey_moving = false;
+	            }
+	        }
+	    }
+	}
