@@ -8,30 +8,31 @@
 
 void setup() {
   serialProtocolBegin(115200);
-  delay(50);
   setServo();
   delay(50);
   motor_pin();
-  delay(50);
   set_tim();
-  delay(50);
   set_int();
-  delay(50);
   setflag();
-  delay(50);
+  updatePrevFlags();
+  sendState(SCARA_STATE_IDLE);  
 }
 
 void loop() {
-  //serialReceiveTask();
-  //pathTask();  
-  //home();
-  ///*
-  sect0();
-  sect1();
-  sect2();
-  sect3();
-  delay(40000000000);
-  //*/
+  move_j2_cm(1);
+  /*
+    serialReceiveTask();
+
+    if (processScaraControlRequests()) {
+        return;
+    }
+
+    pathTask();
+  */
+  //sect0();
+  //sect1();
+  //delay(10000000000);
+//*/
 //*/
   /*
   Serial.print("A=");
@@ -41,27 +42,13 @@ void loop() {
   Serial.print("  pos=");
   Serial.println(j1_enc.pos);
   delay(50);
-  //*/
+  */
   
-  //Serial.println(digitalRead(stop_j1)); // 안누르면 1, 누르면 0 이 나오면 정상
+  //Serial.println(digitalRead(stop_j4)); // 안누르면 1, 누르면 0 이 나오면 정상
   //delay(15);
   
   //Serial.println(digitalRead(stop_z)); // 안누르면 1, 누르면 0 이 나오면 정상
   //delay(5);
-/*
-  static long last = 0;
-
-  noInterrupts();
-  long now = j1_enc.pos;
-  interrupts();
-
-  if (now != last) {
-    Serial.println(now);
-    last = now;
-  }
-
-  delay(10);
-  */
 }
 
 

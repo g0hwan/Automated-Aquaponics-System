@@ -53,7 +53,7 @@ bool move_j1_wait(float targetAngle,
                   unsigned long max_pps = J1_DEFAULT_MAX_PPS,
                   float tolDeg = 1.0f,
                   unsigned long stable_ms = 150,
-                  unsigned long timeout_ms = 80000);
+                  unsigned long timeout_ms = 8000);
 void enc_reset_j1();
 void j1_home_stop_on_switch(bool dir_to_switch, unsigned long pps);
 ///////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +62,7 @@ void j2_set_pps(unsigned long pps);
 bool j2_home_stop_on_switch(bool toward_home, unsigned long pps);
 bool j2_home_precise(bool toward_home, unsigned long fast_pps, unsigned long slow_pps);
 void stop_j2_motion(bool disable_after = false);
+void stopAllMotion(bool disableDrivers = false);
 bool is_j2_endstop_pressed();
 void move_j2_continuous(bool dir, unsigned long pps);
 bool move_j2(float deg, unsigned long pps);

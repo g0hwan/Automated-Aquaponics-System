@@ -41,7 +41,7 @@ static bool move_sync_13(float th1_deg, float th3_deg,
     }
 
     if (millis() - t0 > timeout_ms) {
-      Serial.println("[SYNC13] timeout");
+      //Serial.println("[SYNC13] timeout");
       stop_joints_134();
       motors_enable_all(false);
       return false;
@@ -70,7 +70,7 @@ static bool move_sync_134(float th1_deg, float th3_deg, float th4_deg,
     }
 
     if (millis() - t0 > timeout_ms) {
-      Serial.println("[SYNC134] timeout");
+      //Serial.println("[SYNC134] timeout");
       stop_joints_134();
       motors_enable_all(false);
       return false;
@@ -128,17 +128,18 @@ void home()
   //Serial.println("j2 home");
 
   enc_reset_j1();
-  delay(10);
+  delay(200);
   //Serial.println("j1_back start");
   move_j1_wait(-30, 3000, 1.0, 150, 2000);
   //Serial.println("j1_back");
   delay(250);
-
+  enc_reset_j1();
+  delay(20);
   j1_home_stop_on_switch(false, 2000);
   delay(500);
   enc_reset_j1();
   //Serial.println("j1 home");
-  delay(100);
+  //delay(1000);
 
   move_j1_wait(-40,2000, 1.0, 150, 2000);
   delay(100);
@@ -178,7 +179,7 @@ void goXY(float x, float y, unsigned long pps1, unsigned long int pps2)
   float th1, th2;
   bool ok = inverse2R_best(x, y, th1_cur, th2_cur, th1, th2);
   if (!ok) {
-    Serial.println("[IK] unreachable");
+    //Serial.println("[IK] unreachable");
     return;
   }
 
@@ -218,7 +219,7 @@ void goXY_keepParallel(float x, float y)
 
   float th1, th2;
   if (!inverse2R_best(x, y, th1_cur, th2_cur, th1, th2)) {
-    Serial.println("[IK] unreachable");
+    //Serial.println("[IK] unreachable");
     return;
   }
 
