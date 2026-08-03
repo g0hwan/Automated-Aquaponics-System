@@ -126,12 +126,12 @@ bool move_j1(float targetAngle, unsigned long max_pps, float tolDeg)
   interrupts();
 
   digitalWrite(j1_dir, (pidOut > 0) ? LOW : HIGH);
-  /*
-  Serial.print("Angle="); Serial.print(nowAngle);
-  Serial.print(" Error="); Serial.print(error);
-  Serial.print(" speed="); Serial.print(speed);
-  Serial.print(" interval(us)="); Serial.println(interval);
-*/
+  ///*
+  //Serial.print("Angle="); Serial.print(nowAngle);
+  //Serial.print(" Error="); Serial.println(error);
+  //Serial.print(" speed="); Serial.print(speed);
+  //Serial.print(" interval(us)="); Serial.println(interval);
+//*/
   if (fabs(error) <= j1_gear * tolDeg) {
     j1_run = false;              
     digitalWrite(j1_pul, LOW);   
@@ -294,7 +294,7 @@ void j2_set_pps(unsigned long pps)
 void move_j2_continuous(bool dir, unsigned long pps)
 {
   if (rail_run) {
-    Serial.println("[J2] blocked: rail is running");
+    //Serial.println("[J2] blocked: rail is running");
     return;
   }
 
@@ -304,8 +304,8 @@ void move_j2_continuous(bool dir, unsigned long pps)
 
   j2_enable(true);
 
-  Serial.print("[J2 DIR] input dir = ");
-  Serial.println(dir ? "true" : "false");
+  //Serial.print("[J2 DIR] input dir = ");
+  //Serial.println(dir ? "true" : "false");
 
   digitalWrite(DIR_PIN, dir ? LOW : HIGH);   // 필요시 HIGH/LOW 뒤집기
   digitalWrite(STEP_PIN, LOW);
@@ -334,7 +334,7 @@ void move_j2_continuous(bool dir, unsigned long pps)
 bool j2_home_stop_on_switch(bool toward_home, unsigned long pps)
 {
   if (rail_run) {
-    Serial.println("[J2 HOME] blocked: rail is running");
+    //Serial.println("[J2 HOME] blocked: rail is running");
     return false;
   }
 
@@ -395,7 +395,7 @@ bool is_j2_endstop_pressed()
 bool move_j2(float deg, unsigned long pps)
 {
   if (rail_run) {
-    Serial.println("[J2] blocked: rail is running");
+    //Serial.println("[J2] blocked: rail is running");
     return false;
   }
 
@@ -785,8 +785,8 @@ bool move_j4(float targetAngle, float tolDeg = 0.3f)
 
   digitalWrite(j4_dir, (pidOut > 0) ? LOW : HIGH);
 
-  Serial.print("Angle="); Serial.print(nowAngle);
-  Serial.print(" Error="); Serial.println(error);
+  //Serial.print("Angle="); Serial.print(nowAngle);
+  //Serial.print(" Error="); Serial.println(error);
   //Serial.print(" speed="); Serial.print(speed);
   //Serial.print(" interval(us)="); Serial.println(interval);
 
@@ -1026,7 +1026,7 @@ void rail_set_pps(unsigned long pps)
 void moveRail(unsigned long pps, bool dir)
 {
   if (j2_run) {
-    Serial.println("[RAIL] blocked: j2 is running");
+    //Serial.println("[RAIL] blocked: j2 is running");
     return;
   }
 

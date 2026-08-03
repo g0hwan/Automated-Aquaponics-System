@@ -102,8 +102,8 @@ void sect0(void){
 void sect1(void) {
   if (!sect1_started) {
     sect1_started = true;
-    setSmf(1);// 구동 중이므로 status플레그 셋
-    sendSmf(); // 상태 전송
+    //setSmf(1);// 구동 중이므로 status플레그 셋
+    //sendSmf(); // 상태 전송
   }
   
   enc_reset_j3();
@@ -129,17 +129,18 @@ void sect1(void) {
   delay(300);
   //delay(300);
   move_j2_cm(1); // 살짝 올라가서
+  delay(500);
   enc_reset_j1();
   delay(100);
-  move_j1_wait(-20, 1000); // 뒤로 좀 빼고
+  move_j1_wait(-20, 800,2.0,150, 1000); // 뒤로 좀 빼고
   delay(200);
   enc_reset_j1();
   move_j2_cm(10); // 올라가고
   //move_j1_wait(-10);
   //move_j2_cm(3);
 
-  setCrf(0); // 직교로봇 리셋
-  sendCrf();
+  //setCrf(0); // 직교로봇 리셋
+  //sendCrf();
   j4_move(false, 2000);
   delay(140);
   j4_stop();
@@ -155,7 +156,7 @@ void sect1(void) {
   enc_reset_j1();
   
   
-  if (uv == 1)
+  if (uv == 0)
   {
     moveRail_untilStop(false, 4500, stop3_rail);
     moveRail(1500,1);   
@@ -179,7 +180,7 @@ void sect1(void) {
     moveRail(2600,1);   
     delay(2000);
     
-    moveRail(1200,0);
+    moveRail(1050,0);
     delay(1400);
     stopRail();
     move_j2_cm(-3.7);
@@ -190,7 +191,7 @@ void sect1(void) {
     delay(500);
     uv++;
   }
-  else if(uv == 0)
+  else if(uv == 1)
   {
     moveRail_untilStop(false, 4500, stop3_rail);
     moveRail(2000,0);   
@@ -247,12 +248,13 @@ void sect2(void) {
   }
     
   
-  //urf=0;
-  //ulf++;
+  urf=0;
+  ulf=1;
   moveRail_untilStop(false, 4000, stop3_rail);
   if (((urf == 0)&&(ulf == 1))||((urf == 1)&&(ulf == 1)))
   {
     move_j2_cm(-5);
+    delay(100);
     j1_home_stop_on_switch(false, 1200);
     delay(500);
     enc_reset_j1();
@@ -362,8 +364,8 @@ void sect2(void) {
   delay(200);
   enc_reset_j3();
   move_j2_cm(-1);
-  //wlf == 0;
-  //wrf = 0;
+  wlf == 0;
+  wrf = 1;
   if (((wlf == 1)&&(wrf == 0))||((wlf==0)&&(wrf==0)))
   {
     enc_reset_j1();
@@ -473,9 +475,10 @@ void sect3(void) {
  if (!sect3_started) {
     sect3_started = true;
     //startScaraMotion();
-    home();
+    //home();
   } 
-
+  wrf = 1;
+  wlf = 0;
   home();
   moveRail_untilStop(false, 4400, stop2_rail); 
   delay(100);
@@ -532,7 +535,7 @@ void sect3(void) {
 
     enc_reset_j1();
     delay(35);
-    move_j1_wait(20,500);
+    move_j1_wait(20,500, 1.0, 150, 2000);
     delay(500);
     enc_reset_j1();
 
@@ -623,7 +626,7 @@ void sect3(void) {
   moveRail_untilStop(true, 2000, stop_rail);
 
   moveRail(2000, 1); 
-  delay(800);
+  delay(1800);
   stopRail();
 
   move_j2_cm(-8.5);
@@ -636,8 +639,8 @@ void sect3(void) {
 
   j1_home_stop_on_switch(true, 3200);
 
-  sec3_started = false;
-  currentPath = PATH_IDLE;
+  //sec3_started = false;
+  //currentPath = PATH_IDLE;
 }
 // =========================
 // 전체 동작 판단

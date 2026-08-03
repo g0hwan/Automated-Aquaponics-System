@@ -108,7 +108,7 @@ void home()
   grip(false);
   j2_home_stop_on_switch(true, 4000);   // 또는 j2_home_precise(true, 4000, 1000);
   delay(50);
-  Serial.println("j2 end");
+  //Serial.println("j2 end");
   //delay(1000);
 
   //delay(50);
@@ -125,12 +125,12 @@ void home()
   enc_reset_j3();
 
   move_j2_cm(-1.0f, 4000);
-  Serial.println("j2 home");
+  //Serial.println("j2 home");
 
   enc_reset_j1();
   delay(10);
   //Serial.println("j1_back start");
-  move_j1_wait(-30, 3000);
+  move_j1_wait(-30, 3000, 1.0, 150, 2000);
   //Serial.println("j1_back");
   delay(250);
 
@@ -138,9 +138,9 @@ void home()
   delay(500);
   enc_reset_j1();
   //Serial.println("j1 home");
-  //delay(1000);
+  delay(100);
 
-  move_j1_wait(-40);
+  move_j1_wait(-40,2000, 1.0, 150, 2000);
   delay(100);
   enc_reset_j1();
   
@@ -188,8 +188,8 @@ void goXY(float x, float y, unsigned long pps1, unsigned long int pps2)
 void printXY(float th1_deg, float th2_deg)
 {
   Pose2D p = forward2R(th1_deg, th2_deg, L1_mm, L2_mm);
-  Serial.print("X="); Serial.print(p.x_mm);
-  Serial.print("  Y="); Serial.println(p.y_mm);
+  //Serial.print("X="); Serial.print(p.x_mm);
+  //Serial.print("  Y="); Serial.println(p.y_mm);
 }
 
 void moveXY_rel(float dx_mm, float dy_mm)
@@ -204,7 +204,7 @@ void moveXY_rel(float dx_mm, float dy_mm)
 
   float th1_tgt, th2_tgt;
   if (!inverse2R_best(x_tgt, y_tgt, th1_cur, th2_cur, th1_tgt, th2_tgt)) {
-    Serial.println("[IK] unreachable (rel)");
+    //Serial.println("[IK] unreachable (rel)");
     return;
   }
 
