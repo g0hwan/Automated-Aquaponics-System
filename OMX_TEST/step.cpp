@@ -1,5 +1,5 @@
 #include "step.h"
-
+#include "comm.h"
 #include <math.h>
 
 static constexpr int SW_PIN = 3;
@@ -93,7 +93,7 @@ static int calculateRampDelay(
   return target_delay;
 }
 
-static void moveRailMM(
+static bool moveRailMM(
   bool direction,
   float distance_mm,
   int target_delay_us
@@ -116,9 +116,23 @@ static void moveRailMM(
   );
 
   delayMicroseconds(100);
+  commPoll();
 
+  if (commEstopPending())
+  {
+    stopRail();
+    return false;
+  }
   for (long i = 0; i < pulses; ++i)
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      stopRail();
+      return false;
+    }
+
     const int pulse_delay =
       calculateRampDelay(
         i,
@@ -132,6 +146,7 @@ static void moveRailMM(
   }
 
   stopRail();
+  return true;  
 }
 
 bool homeRail()
@@ -140,11 +155,14 @@ bool homeRail()
 
   if (digitalRead(SW_PIN) == LOW)
   {
-    moveRailMM(
-      RAIL_AWAY_DIR,
-      RAIL_BACKOFF_MM,
-      RAIL_MOVE_DELAY_US
-    );
+    if (!moveRailMM(
+          RAIL_AWAY_DIR,
+          RAIL_BACKOFF_MM,
+          RAIL_MOVE_DELAY_US
+        ))
+    {
+      return false;
+    }
 
     delay(300);
 
@@ -170,6 +188,13 @@ bool homeRail()
 
   while (digitalRead(SW_PIN) == HIGH)
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      stopRail();
+      return false;
+    }
     if (
       millis() - start_ms >
       RAIL_HOME_TIMEOUT_MS
@@ -195,11 +220,14 @@ bool homeRail()
 
   delay(300);
 
-  moveRailMM(
-    RAIL_AWAY_DIR,
-    RAIL_BACKOFF_MM,
-    RAIL_MOVE_DELAY_US
-  );
+  if (!moveRailMM(
+          RAIL_AWAY_DIR,
+          RAIL_BACKOFF_MM,
+          RAIL_MOVE_DELAY_US
+        ))
+    {
+      return false;
+    }
 
   delay(300);
 

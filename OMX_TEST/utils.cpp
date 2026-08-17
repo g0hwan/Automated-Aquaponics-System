@@ -2,7 +2,7 @@
 
 #include <math.h>
 #include <vector>
-
+#include "comm.h"
 OpenManipulator omx;
 DynamixelWorkbench gripper_wb;
 
@@ -298,6 +298,12 @@ static bool waitUntilPoseReached(
     JOINT_REACHED_TIMEOUT_MS
   )
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      return false;
+    }
     processManipulatorOnce();
 
     std::vector<
@@ -411,6 +417,13 @@ static bool commandGripperAndWait(
     GRIPPER_TIMEOUT_MS
   )
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      return false;
+    }
+
     processManipulatorOnce();
 
     const unsigned long now_ms =
@@ -757,13 +770,19 @@ void processManipulatorOnce()
 
   omx.solveForwardKinematics();
 }
-
-void runManipulator(double seconds)
+bool runManipulator(double seconds)
 {
   if (seconds <= 0.0)
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      return false;
+    }
+
     processManipulatorOnce();
-    return;
+    return true;
   }
 
   const unsigned long start_ms =
@@ -779,11 +798,19 @@ void runManipulator(double seconds)
     duration_ms
   )
   {
+    commPoll();
+
+    if (commEstopPending())
+    {
+      return false;
+    }
+
     processManipulatorOnce();
     delay(10);
   }
 
   processManipulatorOnce();
+  return true;
 }
 
 // =====================================================
@@ -831,9 +858,12 @@ bool movePoseTimed(
     present_joint_value
   );
 
-  runManipulator(
-    move_time + 0.10
-  );
+  if (!runManipulator(
+        move_time + 0.10
+      ))
+  {
+    return false;
+  }
 
   return waitUntilPoseReached(
     pose
