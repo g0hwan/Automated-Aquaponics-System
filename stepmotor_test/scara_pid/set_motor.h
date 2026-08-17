@@ -16,7 +16,7 @@
 //z축
 #define STEP_PIN  36
 #define DIR_PIN   51 //  27에서 변경
-#define j2_en     3 // 23에서 변경
+#define j2_en     33 // 23에서 변경
 //#define BK_PIN  21
 #define ALM_PIN   29
 #define stop_z    53
