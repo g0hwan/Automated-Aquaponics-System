@@ -1,5 +1,6 @@
 #include "utils.h"
 #include "step.h"
+#include "comm.h"
 
 static constexpr double ARM_SPEED_RAD_S = 0.60;
 
@@ -102,7 +103,36 @@ static const JointPose SEEDING_PLACE_POSE = {
   -1.6536312893409282
 };
 
+// 통신만 먼저 확인할 때 true
+// 실제 매니퓰레이터 동작까지 실행할 때 false
+static constexpr bool COMM_TEST_ONLY = false;
+
 static bool sequence_failed = false;
+static bool manipulator_ready = false;
+static bool estopped = false;
+static bool job_running = false;
+
+static uint8_t active_job_id = 0;
+static uint8_t last_completed_job_id = 0;
+static bool last_completed_valid = false;
+static void enterEstop()
+{
+  const uint8_t stopped_job_id =
+    active_job_id;
+
+  stopRail();
+
+  estopped = true;
+  sequence_failed = true;
+  job_running = false;
+
+  commSendState(
+    MANIP_STATE_ESTOP,
+    stopped_job_id
+  );
+
+  active_job_id = 0;
+}
 
 // =====================================================
 // 이동 결과 확인
@@ -572,7 +602,10 @@ static bool runFullSequence()
   }
 
   // 레일 호밍 중 멈췄던 매니퓰레이터 처리 재개
-  runManipulator(0.5);
+  if (!runManipulator(0.5))
+  {
+    return false;
+  }
 
   // 4~8. 1번부터 5번까지 순차 수확
   for (uint8_t slot = 0; slot < 5; ++slot)
@@ -603,6 +636,7 @@ static bool runFullSequence()
 void setup()
 {
   Serial.begin(115200);
+  commBegin(Serial);
 
   const unsigned long serial_start_ms =
     millis();
@@ -621,32 +655,210 @@ void setup()
 
   if (!initManipulator())
   {
-    Serial.println("[SYSTEM] INIT FAILED");
-
+    manipulator_ready = false;
     sequence_failed = true;
+
+    commSendState(
+      MANIP_STATE_ERROR,
+      0
+    );
+
+    commSendError(
+      0,
+      MANIP_ERR_NOT_READY
+    );
+
     return;
   }
 
-  runManipulator(1.0);
-
-  if (!runFullSequence())
+  // Dynamixel/OpenManipulator 초기 처리
+  if (!runManipulator(1.0))
   {
-    Serial.println(
-      "[SYSTEM] SEQUENCE ABORTED"
-    );
-
-    sequence_failed = true;
+    commTakeEstop();
+    enterEstop();
+    return;
   }
+
+  manipulator_ready = true;
+  sequence_failed = false;
+  estopped = false;
+  job_running = false;
+  active_job_id = 0;
+
+  // Pi2에 준비 완료 보고
+  commSendState(
+    MANIP_STATE_IDLE,
+    0
+  );
 }
 
 void loop()
 {
   processManipulatorOnce();
+  commPoll();
 
+  // ESTOP은 RESET보다 먼저 처리
+  if (commTakeEstop())
+  {
+    enterEstop();
+    return;
+  }
+
+  if (commTakeReset())
+  {
+    stopRail();
+
+    estopped = false;
+    sequence_failed = false;
+    job_running = false;
+    active_job_id = 0;
+
+    // RESET 이후 같은 ID 작업을 새 작업으로 받을 수 있게 초기화
+    last_completed_valid = false;
+
+    if (manipulator_ready)
+    {
+      commSendState(
+        MANIP_STATE_IDLE,
+        0
+      );
+    }
+    else
+    {
+      commSendState(
+        MANIP_STATE_ERROR,
+        0
+      );
+    }
+
+    return;
+  }
+
+  uint8_t requested_job_id = 0;
+
+  if (!commTakeHarvestJob(requested_job_id))
+  {
+    delay(10);
+    return;
+  }
+
+  // 이미 완료한 작업을 Master가 다시 보낸 경우
+  // 실제 동작은 반복하지 않고 DONE만 재전송
+  if (
+    last_completed_valid &&
+    requested_job_id == last_completed_job_id
+  )
+  {
+    commSendDone(requested_job_id);
+    return;
+  }
+
+  if (!manipulator_ready)
+  {
+    commSendError(
+      requested_job_id,
+      MANIP_ERR_NOT_READY
+    );
+    return;
+  }
+
+  if (estopped)
+  {
+    commSendError(
+      requested_job_id,
+      MANIP_ERR_ESTOP
+    );
+    return;
+  }
+
+  // 이전 동작 실패 후 RESET하지 않은 상태
   if (sequence_failed)
   {
-    delay(20);
+    commSendError(
+      requested_job_id,
+      MANIP_ERR_SEQUENCE_FAILED
+    );
     return;
+  }
+
+  if (job_running)
+  {
+    commSendError(
+      requested_job_id,
+      MANIP_ERR_BUSY
+    );
+    return;
+  }
+
+  job_running = true;
+  active_job_id = requested_job_id;
+
+  commSendState(
+    MANIP_STATE_HARVESTING,
+    active_job_id
+  );
+
+  bool result = false;
+
+  if (COMM_TEST_ONLY)
+  {
+    // 통신 검증용 가상 수확
+    result = runManipulator(3.0);
+  }
+  else
+  {
+    // 최신 manip 폴더의 실제 동작
+    result = runFullSequence();
+  }
+
+  // 동작 도중 들어온 ESTOP이 있었는지 한 번 더 확인
+  commPoll();
+
+  if (commTakeEstop())
+  {
+    enterEstop();
+    return;
+  }
+
+  const uint8_t finished_job_id =
+    active_job_id;
+
+  if (result)
+  {
+    last_completed_job_id =
+      finished_job_id;
+    last_completed_valid = true;
+
+    sequence_failed = false;
+
+    commSendDone(
+      finished_job_id
+    );
+  }
+  else
+  {
+    sequence_failed = true;
+
+    commSendError(
+      finished_job_id,
+      MANIP_ERR_SEQUENCE_FAILED
+    );
+
+    commSendState(
+      MANIP_STATE_ERROR,
+      finished_job_id
+    );
+  }
+
+  job_running = false;
+  active_job_id = 0;
+
+  if (!sequence_failed)
+  {
+    commSendState(
+      MANIP_STATE_IDLE,
+      0
+    );
   }
 
   delay(10);

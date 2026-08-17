@@ -19,6 +19,7 @@ void setup() {
 }
 
 void loop() {
+<<<<<<< HEAD
   //home();
   sect0();
   sect1();
@@ -27,11 +28,17 @@ void loop() {
   //delay(500000);
   /*
     serialReceiveTask();
+=======
+  serialReceiveTask();
+>>>>>>> 19894be591562613b543e6a628dae01d2e1c257c
 
-    if (processScaraControlRequests()) {
-        return;
-    }
+  if (processScaraControlRequests()) {
+      return;
+  }
 
+  pathTask();
+
+<<<<<<< HEAD
     pathTask();
   */
   //sect0();
@@ -54,6 +61,8 @@ void loop() {
   
   //Serial.println(digitalRead(stop_z)); // 안누르면 1, 누르면 0 이 나오면 정상
   //delay(5);
+=======
+>>>>>>> 19894be591562613b543e6a628dae01d2e1c257c
 }
 
 
