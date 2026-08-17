@@ -16,28 +16,24 @@
 	#include "stm32f4xx_hal.h"
 
 	/* ── 동작 파라미터 (실측 후 수정) ────────────── */
-	#define CONVEY_HZ        3000U   // 컨베이어 속도 (step/s)
-	#define STOP_SETTLE_MS    200U   // IR 감지 후 정착 딜레이 (ms)
+	/* 테스트 모드 CY에서 검증된 값 */
+	#define CONVEY_HZ              3500U
+	#define STOP_SETTLE_MS          200U
 
-	// 포토센서 위치까지 하강
-	#define Z_DESCEND_HZ          1000U
+	#define Z_DESCEND_HZ           1000U
+	#define Z_DESCEND_MAX_STEPS   15000
 
-	// 포토센서 고장 시 기계 끝까지 내려가지 않도록 하는 최대 하강량
-	// 실제 장비 치수에 맞춰 반드시 조정
-	#define Z_DESCEND_MAX_STEPS  5000
+	#define Z_RETURN_STEPS         5000
+	#define Z_RETURN_HZ            1000U
 
-	// 수확 완료 후 상승 거리
-	#define Z_RETURN_STEPS        80000
-	#define Z_RETURN_HZ           1000U
-
-	#define EXIT_MIN_RUN_MS   500U   // 배출 컨베이어 최소 구동 시간 (ms)
+	#define EXIT_MIN_RUN_MS         500U
 
 	/* ── 타임아웃 ────────────────────────────────── */
-	#define TIMEOUT_CONVEY_MS   30000U   // 컨베이어 IR 감지 대기
-	#define TIMEOUT_HOMING_MS   15000U   // Z 호밍 리밋 감지 대기
-	#define TIMEOUT_MOVE_MS      12000U   // Z 이동 완료 대기
-	#define TIMEOUT_HARVEST_MS 360000U
-	#define TIMEOUT_EXIT_MS     15000U   // 배출 완료 대기
+	#define TIMEOUT_CONVEY_MS     30000U
+	#define TIMEOUT_HOMING_MS     17000U
+	#define TIMEOUT_MOVE_MS       12000U
+	#define TIMEOUT_HARVEST_MS   360000U
+	#define TIMEOUT_EXIT_MS       15000U
 
 	/* ── SKIP_COMM 시뮬레이션 용 ─────────────────── */
 	#define HARVEST_SIM_MS  3000U
@@ -202,11 +198,27 @@
 					        (HAL_GetTick() - settle_start)
 					        >= STOP_SETTLE_MS
 					    ) {
-					        // Z축 하강 없이 바로 수확 단계로 진입
-					        Comm_SendState(STATE_HARVESTING);
+					        z_photo_hit = false;
 
-					        TIMER_START();
-					        sys_state = SYS_HARVESTING;
+					        // 이미 센서가 눌려 있으면 하강하지 않음
+					        if (Z_PhotoDetected()) {
+					            z_photo_hit = true;
+					            Z_Enable(true);
+
+					            Comm_SendState(STATE_Z_FIX);
+					            seq_state = SEQ_SEND_HARVEST;
+					        }
+					        else {
+					            // 센서가 눌릴 때까지 하강
+					            Z_Enable(true);
+					            Z_MoveSteps(
+					                +Z_DESCEND_MAX_STEPS,
+					                Z_DESCEND_HZ
+					            );
+
+					            TIMER_START();
+					            seq_state = SEQ_Z_DESCEND_TO_PHOTO;
+					        }
 					    }
 					    break;
 
@@ -297,7 +309,7 @@
 				/* 테스트 모드: HARVEST_SIM_MS 딜레이로 수확 시뮬레이션 */
 				if (TIMED_OUT(HARVEST_SIM_MS)) {
 					Z_Enable(true);
-					Z_MoveSteps(+Z_RETURN_STEPS, Z_RETURN_HZ);
+					Z_MoveSteps(-Z_RETURN_STEPS, Z_RETURN_HZ);
 					TIMER_START();
 					seq_state = SEQ_WAIT_Z_RETURN;
 					sys_state = SYS_RUN_CYCLE;
@@ -307,15 +319,15 @@
 				if (Comm_IsHfSet()) {
 				    Comm_ClearHfFlag();
 
-				    // 고정용 Z축 복귀 없이 바로 트레이 배출
-				    Conveyor_Enable(true);
-				    Conveyor_SetDir(true);
-				    Conveyor_StartHz(CONVEY_HZ);
-
-				    Comm_SendState(STATE_EJECTING);
+				    // 먼저 Z축 복귀
+				    Z_Enable(true);
+				    Z_MoveSteps(
+				        -Z_RETURN_STEPS,
+				        Z_RETURN_HZ
+				    );
 
 				    TIMER_START();
-				    seq_state = SEQ_EXIT_CONVEY;
+				    seq_state = SEQ_WAIT_Z_RETURN;
 				    sys_state = SYS_RUN_CYCLE;
 				} else if (TIMED_OUT(TIMEOUT_HARVEST_MS)) {
 					Handle_Timeout(ERR_HARVEST_TIMEOUT);
