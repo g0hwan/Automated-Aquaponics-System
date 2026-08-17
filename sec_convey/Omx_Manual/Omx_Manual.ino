@@ -16,11 +16,11 @@ void setup()
 
 void loop()
 {
-  moveHome();
-  delay(300);
-  setGripper(false);
-  moveJointAbs(87.54, 106.88, -2.11, -103.14);
-  setGripper(true);
+  //moveHome();
+  //delay(300);
+  //setGripper(false);
+  //moveJointAbs(87.54, 106.88, -2.11, -103.14);
+  //setGripper(true);
   delay(5000);
 
 }

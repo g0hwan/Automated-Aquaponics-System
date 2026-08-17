@@ -119,7 +119,7 @@ void home()
   //Serial.println("j3 back");
   j3_home_stop_on_switch(true, 4000);
   enc_reset_j3();
-  delay(5);
+  delay(50);
   //Serial.println("j3 home");
   move_j3_wait(-90);  
   enc_reset_j3();
@@ -130,33 +130,21 @@ void home()
   enc_reset_j1();
   delay(200);
   //Serial.println("j1_back start");
-  move_j1_wait(-30, 3000, 1.0, 150, 2000);
+  move_j1_wait(-30, 3000, 1.0, 150, 1500);
   //Serial.println("j1_back");
-  delay(250);
+  delay(750);
   enc_reset_j1();
-  delay(20);
-  j1_home_stop_on_switch(false, 2000);
-  delay(500);
+  delay(200);
+  j1_home_stop_on_switch(false, 1500);
+  delay(700);
   enc_reset_j1();
   //Serial.println("j1 home");
-  //delay(1000);
+  delay(200);
 
   move_j1_wait(-40,2000, 1.0, 150, 2000);
-  delay(100);
+  delay(800);
   enc_reset_j1();
-  
-  //Serial.println("j1 end");
-/*
-  j4_home_stop_on_switch_safe(false, 2000);
-  delay(500);
-  move_j4_wait(-15.0f);
-  delay(50);
-*/
-  //j4_home_openloop(true, 2300);   // 홈 스위치로 원점
-  //delay(200);
 
-  //move_j4_openloop(15.0f, 1200);  // 절대각 -15도
-  //j4_home_openloop(true, 2000);
   delay(200);
 
   moveRail(false, 4000);

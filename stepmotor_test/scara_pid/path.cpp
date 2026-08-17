@@ -189,7 +189,7 @@ void sect1(void) {
   delay(1300);
   enc_reset_j1();
   delay(10);
-  move_j1_wait(45,1500);
+  move_j1_wait(45,1000,1.0, 150, 2500);
   enc_reset_j1();
   delay(500);
 
@@ -237,28 +237,32 @@ void sect1(void) {
     moveRail(1500,1);   
     delay(1000);
     stopRail();
-    move_j2_cm(-1.5);
     
-    j4_move(false, 830);
+    j4_move(false, 900);
     delay(2000);
     j4_stop();
-
+    delay(300);
     enc_reset_j3();
     move_j3_wait(-20);
+    delay(700);
     enc_reset_j3();
-    
+    delay(500);
+
+    move_j2_cm(-1.5);
+    delay(200);
+
     enc_reset_j1();
     delay(10);
-    move_j1_wait(45, 1200, 2.0, 150, 2500);
+    move_j1_wait(42, 1200, 2.0, 150, 2500);
     delay(300);
     enc_reset_j1();
-    delay(10);
+    delay(100);
     
     
     moveRail(2600,1);   
     delay(2000);
     
-    moveRail(1050,0);
+    moveRail(1100,0);
     delay(1400);
     stopRail();
     move_j2_cm(-3.7);
@@ -570,7 +574,7 @@ void sect3(void) {
     enc_reset_j1();
     delay(20);
     move_j1_wait(205,2500);
-    delay(100);
+    delay(700);
     enc_reset_j1();
     //j1_home_stop_on_switch(true, 3200);
     //delay(500);
@@ -601,13 +605,13 @@ void sect3(void) {
     move_j2_cm(17);
 
     moveRail_untilStop(true, 4000, stop3_rail);
-    moveRail(2600,1);
+    moveRail(2500,1);
     delay(2000);
     //j4_stop();
     stopRail();
     delay(200);
 
-    j4_move(false, 600);
+    j4_move(false, 500);
     delay(500);
     j4_stop();
 
@@ -715,8 +719,15 @@ void sect3(void) {
   delay(1000);
   stopRail();
 
+  enc_reset_j3();
+  delay(20);
+  move_j3_wait(55);
+  delay(200);
+  enc_reset_j3();
+  
   j1_home_stop_on_switch(true, 3200);
 
+  
   finishSect3();
 
   sect3_started = false;

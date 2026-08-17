@@ -16,7 +16,7 @@
 //z축
 #define STEP_PIN  36
 #define DIR_PIN   51 //  27에서 변경
-#define j2_en     28
+#define j2_en     33
 //#define BK_PIN  21
 #define ALM_PIN   29
 #define stop_z    53
@@ -44,8 +44,8 @@
 #define rail_dir  42
 #define rail_en   43
 #define stop_rail 44
-#define stop2_rail 40
-#define stop3_rail 49
+#define stop2_rail 40 // 노란색 피복
+#define stop3_rail 49 // 초록색 암
 
 //릴레이 핀 설정
 #define num1 48

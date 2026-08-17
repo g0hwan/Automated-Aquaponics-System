@@ -19,7 +19,12 @@ void setup() {
 }
 
 void loop() {
-  move_j2_cm(1);
+  //home();
+  sect0();
+  sect1();
+  //move_j2_cm(1);
+  //delay(1000000);
+  //delay(500000);
   /*
     serialReceiveTask();
 
@@ -44,7 +49,7 @@ void loop() {
   delay(50);
   */
   
-  //Serial.println(digitalRead(stop_j4)); // 안누르면 1, 누르면 0 이 나오면 정상
+  //Serial.println(digitalRead(stop_rail)); // 안누르면 1, 누르면 0 이 나오면 정상
   //delay(15);
   
   //Serial.println(digitalRead(stop_z)); // 안누르면 1, 누르면 0 이 나오면 정상
