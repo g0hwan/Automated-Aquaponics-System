@@ -1,9 +1,10 @@
 #include "step.h"
 #include "comm.h"
+
 #include <math.h>
 
 static constexpr int SW_PIN = 3;
-static constexpr int PUL_PIN = 4;
+static constexpr int PUL_PIN = 6;
 static constexpr int DIR_PIN = 7;
 
 static constexpr bool RAIL_HOME_DIR = 1;
@@ -15,7 +16,7 @@ static constexpr int RAIL_HOME_DELAY_US = 500;
 static constexpr int RAIL_START_DELAY_US = 1000;
 static constexpr int RAIL_MOVE_DELAY_US = 180;
 
-static constexpr float RAIL_BACKOFF_MM = 3.0f;
+static constexpr float RAIL_BACKOFF_MM = 7.0f;
 
 static constexpr unsigned long RAIL_HOME_TIMEOUT_MS =
   30000;
@@ -116,6 +117,7 @@ static bool moveRailMM(
   );
 
   delayMicroseconds(100);
+
   commPoll();
 
   if (commEstopPending())
@@ -123,6 +125,7 @@ static bool moveRailMM(
     stopRail();
     return false;
   }
+
   for (long i = 0; i < pulses; ++i)
   {
     commPoll();
@@ -146,7 +149,8 @@ static bool moveRailMM(
   }
 
   stopRail();
-  return true;  
+
+  return true;
 }
 
 bool homeRail()
@@ -195,6 +199,7 @@ bool homeRail()
       stopRail();
       return false;
     }
+
     if (
       millis() - start_ms >
       RAIL_HOME_TIMEOUT_MS
@@ -221,13 +226,13 @@ bool homeRail()
   delay(300);
 
   if (!moveRailMM(
-          RAIL_AWAY_DIR,
-          RAIL_BACKOFF_MM,
-          RAIL_MOVE_DELAY_US
-        ))
-    {
-      return false;
-    }
+        RAIL_AWAY_DIR,
+        RAIL_BACKOFF_MM,
+        RAIL_MOVE_DELAY_US
+      ))
+  {
+    return false;
+  }
 
   delay(300);
 

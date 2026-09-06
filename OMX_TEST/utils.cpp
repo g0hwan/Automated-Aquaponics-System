@@ -1,8 +1,9 @@
 #include "utils.h"
+#include "comm.h"
 
 #include <math.h>
 #include <vector>
-#include "comm.h"
+
 OpenManipulator omx;
 DynamixelWorkbench gripper_wb;
 
@@ -38,6 +39,10 @@ static constexpr unsigned long GRIPPER_CONTACT_STALL_MS = 350;
 static constexpr double DEFAULT_SPEED_RAD_S = 0.42;
 static constexpr double MIN_MOVE_TIME = 0.80;
 static constexpr double MAX_MOVE_TIME = 15.0;
+
+// The longest taught path uses six poses plus the live start pose.
+static constexpr uint8_t MAX_PATH_WAYPOINTS = 7;
+static constexpr unsigned long PATH_COMMAND_INTERVAL_MS = 10;
 
 // 목표 자세 도달 확인
 static constexpr double JOINT_REACHED_TOLERANCE_RAD = 0.12;
@@ -287,7 +292,8 @@ static double calculateMoveTimeFromPresent(
 // =====================================================
 
 static bool waitUntilPoseReached(
-  const JointPose &pose
+  const JointPose &pose,
+  bool update_trajectory
 )
 {
   const unsigned long start_ms =
@@ -304,7 +310,11 @@ static bool waitUntilPoseReached(
     {
       return false;
     }
-    processManipulatorOnce();
+
+    if (update_trajectory)
+    {
+      processManipulatorOnce();
+    }
 
     std::vector<
       robotis_manipulator::JointValue
@@ -770,6 +780,7 @@ void processManipulatorOnce()
 
   omx.solveForwardKinematics();
 }
+
 bool runManipulator(double seconds)
 {
   if (seconds <= 0.0)
@@ -809,7 +820,15 @@ bool runManipulator(double seconds)
     delay(10);
   }
 
+  commPoll();
+
+  if (commEstopPending())
+  {
+    return false;
+  }
+
   processManipulatorOnce();
+
   return true;
 }
 
@@ -858,15 +877,18 @@ bool movePoseTimed(
     present_joint_value
   );
 
-  if (!runManipulator(
-        move_time + 0.10
-      ))
+  runManipulator(
+    move_time + 0.10
+  );
+
+  if (commEstopPending())
   {
     return false;
   }
 
   return waitUntilPoseReached(
-    pose
+    pose,
+    true
   );
 }
 
@@ -902,6 +924,312 @@ bool movePoseAtSpeed(
 // =====================================================
 // 그리퍼
 // =====================================================
+
+// =====================================================
+// Continuous multi-waypoint joint path
+// =====================================================
+
+static double getPoseJointValue(
+  const JointPose &pose,
+  uint8_t joint_index
+)
+{
+  switch (joint_index)
+  {
+    case 0:
+      return pose.j1;
+
+    case 1:
+      return pose.j2;
+
+    case 2:
+      return pose.j3;
+
+    default:
+      return pose.j4;
+  }
+}
+
+static double getPathSegmentTime(
+  const JointPose &start,
+  const JointPose &goal,
+  double speed_rad_s
+)
+{
+  double max_delta = 0.0;
+
+  for (uint8_t joint = 0; joint < 4; ++joint)
+  {
+    const double delta =
+      fabs(
+        getPoseJointValue(goal, joint) -
+        getPoseJointValue(start, joint)
+      );
+
+    if (delta > max_delta)
+    {
+      max_delta = delta;
+    }
+  }
+
+  double move_time = max_delta / speed_rad_s;
+
+  if (move_time < MIN_MOVE_TIME)
+  {
+    move_time = MIN_MOVE_TIME;
+  }
+
+  if (move_time > MAX_MOVE_TIME)
+  {
+    move_time = MAX_MOVE_TIME;
+  }
+
+  return move_time;
+}
+
+static double getBlendedWaypointVelocity(
+  double previous_position,
+  double waypoint_position,
+  double next_position,
+  double previous_time,
+  double next_time
+)
+{
+  const double previous_slope =
+    (waypoint_position - previous_position) /
+    previous_time;
+
+  const double next_slope =
+    (next_position - waypoint_position) /
+    next_time;
+
+  // A direction reversal must stop that joint at the waypoint. The other
+  // joints can keep moving, so the arm as a whole remains smooth.
+  if (previous_slope * next_slope <= 0.0)
+  {
+    return 0.0;
+  }
+
+  const double lower_slope =
+    fabs(previous_slope) < fabs(next_slope)
+      ? fabs(previous_slope)
+      : fabs(next_slope);
+
+  const double direction =
+    previous_slope > 0.0 ? 1.0 : -1.0;
+
+  // This prevents overshoot at a taught pose while retaining non-zero velocity
+  // through each pass-through waypoint.
+  return direction * lower_slope * 0.80;
+}
+
+static void getQuinticPoint(
+  double start_position,
+  double start_velocity,
+  double goal_position,
+  double goal_velocity,
+  double move_time,
+  double elapsed_time,
+  robotis_manipulator::JointValue &result
+)
+{
+  const double position_delta =
+    goal_position - start_position;
+
+  const double move_time_2 = move_time * move_time;
+  const double move_time_3 = move_time_2 * move_time;
+  const double move_time_4 = move_time_3 * move_time;
+  const double move_time_5 = move_time_4 * move_time;
+
+  const double coefficient_3 =
+    (10.0 * position_delta -
+     6.0 * start_velocity * move_time -
+     4.0 * goal_velocity * move_time) /
+    move_time_3;
+
+  const double coefficient_4 =
+    (-15.0 * position_delta +
+     8.0 * start_velocity * move_time +
+     7.0 * goal_velocity * move_time) /
+    move_time_4;
+
+  const double coefficient_5 =
+    (6.0 * position_delta -
+     3.0 * (start_velocity + goal_velocity) * move_time) /
+    move_time_5;
+
+  const double time_2 = elapsed_time * elapsed_time;
+  const double time_3 = time_2 * elapsed_time;
+  const double time_4 = time_3 * elapsed_time;
+  const double time_5 = time_4 * elapsed_time;
+
+  result.position =
+    start_position +
+    start_velocity * elapsed_time +
+    coefficient_3 * time_3 +
+    coefficient_4 * time_4 +
+    coefficient_5 * time_5;
+
+  result.velocity =
+    start_velocity +
+    3.0 * coefficient_3 * time_2 +
+    4.0 * coefficient_4 * time_3 +
+    5.0 * coefficient_5 * time_4;
+
+  result.acceleration =
+    6.0 * coefficient_3 * elapsed_time +
+    12.0 * coefficient_4 * time_2 +
+    20.0 * coefficient_5 * time_3;
+
+  result.effort = 0.0;
+}
+
+bool movePosePathAtSpeed(
+  const JointPose *poses,
+  uint8_t pose_count,
+  double speed_rad_s
+)
+{
+  if (
+    poses == nullptr ||
+    pose_count == 0 ||
+    pose_count >= MAX_PATH_WAYPOINTS
+  )
+  {
+    Serial.println("[ARM] INVALID PATH");
+    return false;
+  }
+
+  if (speed_rad_s <= 0.0)
+  {
+    speed_rad_s = DEFAULT_SPEED_RAD_S;
+  }
+
+  std::vector<
+    robotis_manipulator::JointValue
+  > present_joint_value;
+
+  if (!readCurrentJointValues(present_joint_value))
+  {
+    return false;
+  }
+
+  const uint8_t waypoint_count = pose_count + 1;
+
+  JointPose waypoints[MAX_PATH_WAYPOINTS];
+  double segment_times[MAX_PATH_WAYPOINTS - 1];
+  double waypoint_velocities[MAX_PATH_WAYPOINTS][4];
+
+  waypoints[0] = {
+    present_joint_value[0].position,
+    present_joint_value[1].position,
+    present_joint_value[2].position,
+    present_joint_value[3].position
+  };
+
+  for (uint8_t pose_index = 0; pose_index < pose_count; ++pose_index)
+  {
+    waypoints[pose_index + 1] = poses[pose_index];
+  }
+
+  for (uint8_t segment = 0; segment < pose_count; ++segment)
+  {
+    segment_times[segment] =
+      getPathSegmentTime(
+        waypoints[segment],
+        waypoints[segment + 1],
+        speed_rad_s
+      );
+  }
+
+  for (uint8_t joint = 0; joint < 4; ++joint)
+  {
+    waypoint_velocities[0][joint] = 0.0;
+    waypoint_velocities[waypoint_count - 1][joint] = 0.0;
+
+    for (uint8_t waypoint = 1;
+         waypoint < waypoint_count - 1;
+         ++waypoint)
+    {
+      waypoint_velocities[waypoint][joint] =
+        getBlendedWaypointVelocity(
+          getPoseJointValue(waypoints[waypoint - 1], joint),
+          getPoseJointValue(waypoints[waypoint], joint),
+          getPoseJointValue(waypoints[waypoint + 1], joint),
+          segment_times[waypoint - 1],
+          segment_times[waypoint]
+        );
+    }
+  }
+
+  Serial.print("[ARM] SMOOTH PATH POSES=");
+  Serial.println(pose_count);
+
+  std::vector<
+    robotis_manipulator::JointValue
+  > command(4);
+
+  for (uint8_t segment = 0; segment < pose_count; ++segment)
+  {
+    const unsigned long segment_start_ms = millis();
+    const unsigned long segment_time_ms =
+      static_cast<unsigned long>(
+        segment_times[segment] * 1000.0
+      );
+
+    while (true)
+    {
+      commPoll();
+
+      if (commEstopPending())
+      {
+        return false;
+      }
+
+      const unsigned long elapsed_ms =
+        millis() - segment_start_ms;
+
+      double elapsed_time =
+        static_cast<double>(elapsed_ms) / 1000.0;
+
+      if (elapsed_time > segment_times[segment])
+      {
+        elapsed_time = segment_times[segment];
+      }
+
+      for (uint8_t joint = 0; joint < 4; ++joint)
+      {
+        getQuinticPoint(
+          getPoseJointValue(waypoints[segment], joint),
+          waypoint_velocities[segment][joint],
+          getPoseJointValue(waypoints[segment + 1], joint),
+          waypoint_velocities[segment + 1][joint],
+          segment_times[segment],
+          elapsed_time,
+          command[joint]
+        );
+      }
+
+      if (!omx.sendAllJointActuatorValue(command))
+      {
+        Serial.println("[ARM] SMOOTH PATH COMMAND FAILED");
+        return false;
+      }
+
+      if (elapsed_ms >= segment_time_ms)
+      {
+        break;
+      }
+
+      delay(PATH_COMMAND_INTERVAL_MS);
+    }
+  }
+
+  return waitUntilPoseReached(
+    poses[pose_count - 1],
+    false
+  );
+}
 
 bool openGripper()
 {

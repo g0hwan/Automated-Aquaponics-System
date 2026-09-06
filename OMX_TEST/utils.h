@@ -18,7 +18,7 @@ extern DynamixelWorkbench gripper_wb;
 bool initManipulator();
 
 void processManipulatorOnce();
-bool runManipulator(double seconds);  
+bool runManipulator(double seconds);
 
 bool movePoseTimed(
   const JointPose &pose,
@@ -27,6 +27,13 @@ bool movePoseTimed(
 
 bool movePoseAtSpeed(
   const JointPose &pose,
+  double speed_rad_s
+);
+
+// Follow every waypoint without stopping at intermediate poses.
+bool movePosePathAtSpeed(
+  const JointPose *poses,
+  uint8_t pose_count,
   double speed_rad_s
 );
 

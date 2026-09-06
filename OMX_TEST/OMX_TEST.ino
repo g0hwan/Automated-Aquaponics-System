@@ -2,16 +2,20 @@
 #include "step.h"
 #include "comm.h"
 
-static constexpr double ARM_SPEED_RAD_S = 0.60;
+static constexpr double ARM_SPEED_RAD_S = 0.55;
+static constexpr double HARVEST_APPROACH_SPEED_RAD_S = 0.35;
+static constexpr double HARVEST_GRIP_SETTLE_SECONDS = 1.0;
+static constexpr double HARVEST_RELEASE_SETTLE_SECONDS = 0.6;
+// Keep the arm slow only while it carries a loaded tray. After releasing the
+// tray, use the regular arm speed for the exit route and home return.
+static constexpr double NEW_TRAY_LOADED_MOVE_SPEED_RAD_S = 0.15;
+static constexpr double NEW_TRAY_EMPTY_MOVE_SPEED_RAD_S = ARM_SPEED_RAD_S;
+static constexpr double FIRST_HOME_MOVE_TIME = 4.0;
+static constexpr double RELEASE_POSE_SPEED_RAD_S = 0.65;
 
-static constexpr double FIRST_HOME_MOVE_TIME = 3.0;
+// true: 통신만 검증, false: 실제 전체 수확/트레이 시퀀스 수행
+static constexpr bool COMM_TEST_ONLY = false;
 
-// =====================================================
-// 매니퓰레이터 자세
-// =====================================================
-
-// 홈 자세
-// 수확 후 식물을 들어 올리는 자세로도 사용
 static const JointPose HOME_LIFT_POSE = {
   1.1842331682475082,
   -0.5737088146694367,
@@ -19,8 +23,6 @@ static const JointPose HOME_LIFT_POSE = {
   -0.2807184841832795
 };
 
-// 식물을 상자에 놓은 뒤 거치는 중간 자세
-// 파종 컨베이어에 트레이를 놓은 뒤에도 이 자세를 거쳐 홈 복귀
 static const JointPose SAFE_TRANSFER_POSE = {
   0.019941750242306266,
   -0.3896311201231599,
@@ -28,84 +30,155 @@ static const JointPose SAFE_TRANSFER_POSE = {
   0.31753402309212087
 };
 
-// 1~5번 칸 수확 자세
-static const JointPose HARVEST_POSES[5] = {
-  // 1번 칸
-  {
-    1.5677283652189180,
-    0.8943107993371218,
-    0.9848156658223743,
-    -1.3928545554003690
-  },
-
-  // 2번 칸
-  {
-    1.5523885573400618,
-    0.9618059540040900,
-    0.8406214717611245,
-    -1.5815341923103030
-  },
-
-  // 3번 칸
-  {
-    1.5539225381279476,
-    0.8728350683067232,
-    0.7225049510939301,
-    -1.2271846303087200
-  },
-
-  // 4번 칸
-  {
-    1.5585244804916040,
-    0.9173205111554061,
-    0.5829126993963367,
-    -1.2379224958239194
-  },
-
-  // 5번 칸
-  {
-    1.5968740001887456,
-    0.9648739155798616,
-    0.4019029664258311,
-    -1.0891263593990121
-  }
+// Harvest poses mapped directly to their taught slot numbers. The order in
+// each row is joint1, joint2, joint3, joint4; gripper_left_joint from
+// /joint_states is intentionally excluded.
+// Each slot currently has one final taught pose, kept as a one-pose path so
+// the common smooth-path motion code can be reused.
+static const JointPose HARVEST_SLOT_1_PATH[] = {
+  {1.5063691337034930, 0.6335340653965629, 1.0615147052166565, -1.3222914391576297}
 };
 
-// 식물 상자에 수확물을 떨어뜨리는 자세
-static const JointPose PLANT_DROP_POSE = {
-  -2.8593401886190420,
-  0.6151262959419350,
-  0.8191457407307254,
-  -0.9894176081864456
+static const JointPose HARVEST_SLOT_2_PATH[] = {
+  {1.5125050568550353, 0.5967185264873076, 0.9572040116404334, -1.1642914180054087}
 };
 
-// 새 트레이 접근 및 들어 올림 전환 자세
-static const JointPose NEW_TRAY_TRANSFER_POSE = {
+static const JointPose HARVEST_SLOT_3_PATH[] = {
+  {1.5309128263096632, 0.6273981422450201, 0.7838641826093555, -1.1121360712172970}
+};
+
+static const JointPose HARVEST_SLOT_4_PATH[] = {
+  {1.5232429223702350, 0.6043884304267357, 0.6611457195785042, -0.9633399347923897}
+};
+
+static const JointPose HARVEST_SLOT_5_PATH[] = {
+  {1.5109710760671495, 0.7040971816393022, 0.47706802503222745, -0.9096506072163923}
+};
+
+static const JointPose *const HARVEST_PATHS[5] = {
+  HARVEST_SLOT_1_PATH,
+  HARVEST_SLOT_2_PATH,
+  HARVEST_SLOT_3_PATH,
+  HARVEST_SLOT_4_PATH,
+  HARVEST_SLOT_5_PATH
+};
+
+static const uint8_t HARVEST_PATH_COUNTS[5] = {
+  1,
+  1,
+  1,
+  1,
+  1
+};
+
+// Physical harvest order: slot 5 -> 4 -> 3 -> 2 -> 1. The tray-transfer
+// route starts only after slot 1 has finished.
+static const uint8_t HARVEST_ORDER[] = {
+  4,  // slot 5
+  3,  // slot 4
+  2,  // slot 3
+  1,  // slot 2
+  0   // slot 1
+};
+static constexpr uint8_t HARVEST_ORDER_COUNT =
+  sizeof(HARVEST_ORDER) / sizeof(HARVEST_ORDER[0]);
+
+static const JointPose PLANT_DROP_POSE_A = {
+  -2.9835926324377790,
+  0.3328738309709771,
+  0.7930680673366695,
+  -0.7117670855791443
+};
+
+static const JointPose PLANT_DROP_POSE_B = {
   -2.9437091319527524,
-  0.2853204265465221,
-  0.17947575218241285,
-  -0.4249126782445294
+  0.19328157927338374,
+  0.8897088569734652,
+  -0.2730485802438509
 };
 
-// 새 트레이를 집는 자세
-static const JointPose NEW_TRAY_PICKUP_POSE = {
-  -3.0250101137106915,
-  1.2394564766113910,
-  -0.23930100291036682,
-  -0.5737088146694367
+// New-tray route executed only after the final harvest (slot 1). Each pose
+// contains joint1 through joint4; gripper_left_joint is operated separately.
+static const JointPose FINAL_HARVEST_TRAY_PICKUP_APPROACH_POSE = {
+  -2.9636508821952656,
+  0.5184855063051397,
+  -0.02147573103060596,
+  -0.31600004230464895
 };
 
-// 파종 컨베이어에 트레이를 내려놓는 자세
-static const JointPose SEEDING_PLACE_POSE = {
-  -1.6873788666744123,
-  0.8973787609128934,
-  0.6151262959419350,
-  -1.6536312893409282
+static const JointPose FINAL_HARVEST_TRAY_PICKUP_POSE_1 = {
+  -2.9575149590437233,
+  0.8206797215186112,
+  -0.30219421521367806,
+  -0.08130098175814604
 };
 
-// 통신만 먼저 확인할 때 true
-// 실제 매니퓰레이터 동작까지 실행할 때 false
-static constexpr bool COMM_TEST_ONLY = false;
+static const JointPose FINAL_HARVEST_TRAY_PICKUP_POSE_2 = {
+  -3.000466421104521,
+  1.0431069357620286,
+  -0.7317088358216579,
+  0.4494563708502861
+};
+
+// Smooth, payload-carrying route from pickup position 2 to the release pose.
+// Intermediate joint positions limit the largest single-joint change to about
+// 0.25 rad while the tray is held.
+static const JointPose FINAL_HARVEST_TRAY_CARRY_PATH_1[] = {
+  {-2.9887059017307309, 0.80764088482158281, -0.518996833234849, 0.36994503334488038},
+  {-2.976945382356941, 0.572174833881137, -0.30628483064804007, 0.29043369583947465},
+  {-2.9651848629831514, 0.33670878294069118, -0.093572828061231128, 0.21092235833406892},
+  {-2.9534243436093615, 0.10124273200024536, 0.11913917452557776, 0.13141102082866318},
+  {-2.9416638242355715, -0.13422331894020045, 0.33185117711238665, 0.051899683323257451},
+  {-2.9299033048617815, -0.36968936988064627, 0.54456317969919565, -0.027611654182148282}
+};
+
+static const JointPose FINAL_HARVEST_TRAY_CARRY_PATH_2[] = {
+  {-2.6780236594909592, -0.44362724385673424, 0.62770493840259733, -0.0828349625460314},
+  {-2.4261440141201369, -0.51756511783282222, 0.710846697105999, -0.13805827090991452},
+  {-2.1742643687493146, -0.59150299180891008, 0.79398845580940081, -0.19328157927379763},
+  {-1.9223847233784925, -0.66544086578499806, 0.87713021451280249, -0.24850488763768075},
+  {-1.6705050780076702, -0.739378739761086, 0.96027197321620417, -0.30372819600156387}
+};
+
+static const JointPose FINAL_HARVEST_TRAY_CARRY_PATH_3[] = {
+  {-1.6515859816237473, -0.49931074645698315, 0.83937156148951364, -0.37199034106247492},
+  {-1.6326668852398245, -0.25924275315288031, 0.71847114976282322, -0.44025248612338597},
+  {-1.6137477888559015, -0.019174759848777367, 0.59757073803613259, -0.508514631184297},
+  {-1.5948286924719786, 0.22089323345532541, 0.47667032630944223, -0.57677677624520807},
+  {-1.5759095960880558, 0.46096122675942808, 0.35576991458275176, -0.645038921306119},
+  {-1.5569904997041328, 0.7010292200635313, 0.23486950285606112, -0.71330106636703006}
+};
+
+static constexpr uint8_t FINAL_HARVEST_TRAY_CARRY_PATH_1_COUNT =
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_1) /
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_1[0]);
+static constexpr uint8_t FINAL_HARVEST_TRAY_CARRY_PATH_2_COUNT =
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_2) /
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_2[0]);
+static constexpr uint8_t FINAL_HARVEST_TRAY_CARRY_PATH_3_COUNT =
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_3) /
+  sizeof(FINAL_HARVEST_TRAY_CARRY_PATH_3[0]);
+
+static const JointPose FINAL_HARVEST_TRAY_EXIT_POSE_1 = {
+  -1.624485654371101,
+  -0.1165825398795155,
+  0.2316310989705248,
+  -0.1641359443039705
+};
+
+static const JointPose FINAL_HARVEST_TRAY_EXIT_POSE_2 = {
+  -0.11198059751585854,
+  0.018407769454420908,
+  -0.030679615757919887,
+  0.12271846303064438
+};
+
+static const JointPose FINAL_HARVEST_TRAY_EXIT_POSE_3 = {
+  1.4158642672182395,
+  -0.7777282594582271,
+  0.4862719097595414,
+  0.1764077906066417
+};
 
 static bool sequence_failed = false;
 static bool manipulator_ready = false;
@@ -115,10 +188,10 @@ static bool job_running = false;
 static uint8_t active_job_id = 0;
 static uint8_t last_completed_job_id = 0;
 static bool last_completed_valid = false;
+
 static void enterEstop()
 {
-  const uint8_t stopped_job_id =
-    active_job_id;
+  const uint8_t stopped_job_id = active_job_id;
 
   stopRail();
 
@@ -134,14 +207,7 @@ static void enterEstop()
   active_job_id = 0;
 }
 
-// =====================================================
-// 이동 결과 확인
-// =====================================================
-
-static bool checkMove(
-  bool result,
-  const char *move_name
-)
+static bool checkMove(bool result, const char *move_name)
 {
   if (result)
   {
@@ -150,501 +216,389 @@ static bool checkMove(
 
   Serial.print("[SYSTEM] MOVE FAILED: ");
   Serial.println(move_name);
-
   return false;
 }
-
-// =====================================================
-// 홈 자세 이동
-// =====================================================
 
 static bool moveHome()
 {
   Serial.println("[ARM] MOVE HOME");
 
   return checkMove(
-    movePoseAtSpeed(
-      HOME_LIFT_POSE,
-      ARM_SPEED_RAD_S
-    ),
+    movePoseAtSpeed(HOME_LIFT_POSE, ARM_SPEED_RAD_S),
     "HOME"
   );
 }
 
-// =====================================================
-// 식물 놓기용 그리퍼 반복 동작
-// =====================================================
-//
-// 식물 상자 자세 도착 후:
-//
-// 열기
-// → 닫기
-// → 다시 열기  (1회)
-// → 닫기
-// → 다시 열기  (2회)
-//
-// J2/J4 흔들기는 사용하지 않음.
-// =====================================================
-
-static bool releasePlantWithGripperMotion()
+// Tray-transfer route that was used when the slot 1 through 5 harvest poses
+// above were tuned.
+static bool transferNewTrayAfterFinalHarvest()
 {
-  Serial.println("[HARVEST] RELEASE OPEN");
+  Serial.println("[NEW TRAY] FINAL-HARVEST SEQUENCE START");
 
-  if (!openGripper())
-  {
-    Serial.println(
-      "[SYSTEM] PLANT RELEASE OPEN FAILED"
-    );
-
-    return false;
-  }
-
-  for (uint8_t repeat = 0; repeat < 2; ++repeat)
-  {
-    Serial.print("[HARVEST] RELEASE CLOSE/OPEN ");
-    Serial.println(repeat + 1);
-
-    if (!closeGripper())
-    {
-      Serial.println(
-        "[SYSTEM] PLANT RELEASE CLOSE FAILED"
-      );
-
-      return false;
-    }
-
-    if (!openGripper())
-    {
-      Serial.println(
-        "[SYSTEM] PLANT RELEASE REOPEN FAILED"
-      );
-
-      return false;
-    }
-  }
-
-  return true;
-}
-
-// =====================================================
-// 트레이 놓기용 그리퍼 반복 동작
-// =====================================================
-//
-// 파종 컨베이어 자세 도착 후:
-//
-// 열기
-// → 닫기
-// → 다시 열기  (1회)
-// → 닫기
-// → 다시 열기  (2회)
-//
-// J2/J4 흔들기는 사용하지 않음.
-// =====================================================
-
-static bool releaseTrayWithGripperMotion()
-{
-  Serial.println("[NEW TRAY] RELEASE OPEN");
-
-  if (!openGripper())
-  {
-    Serial.println(
-      "[SYSTEM] TRAY RELEASE OPEN FAILED"
-    );
-
-    return false;
-  }
-
-  for (uint8_t repeat = 0; repeat < 2; ++repeat)
-  {
-    Serial.print("[NEW TRAY] RELEASE CLOSE/OPEN ");
-    Serial.println(repeat + 1);
-
-    if (!closeGripper())
-    {
-      Serial.println(
-        "[SYSTEM] TRAY RELEASE CLOSE FAILED"
-      );
-
-      return false;
-    }
-
-    if (!openGripper())
-    {
-      Serial.println(
-        "[SYSTEM] TRAY RELEASE REOPEN FAILED"
-      );
-
-      return false;
-    }
-  }
-
-  return true;
-}
-
-// =====================================================
-// 한 칸 수확
-// =====================================================
-//
-// 순서:
-// 해당 칸 수확 자세
-// → 그리퍼 닫기
-// → 들어 올림 자세
-// → 중간 자세
-// → 식물 상자 자세
-// → 그리퍼 열기
-// → 닫기/열기 2회
-// → 중간 자세
-// → 홈 복귀
-//
-// 1번부터 5번까지 모두 같은 순서로 실행함.
-// =====================================================
-
-static bool harvestSlot(uint8_t slot)
-{
-  Serial.print("[HARVEST] SLOT ");
-  Serial.print(slot + 1);
-  Serial.println(" START");
-
-  // 1. 해당 칸 수확 자세
-  Serial.println("[HARVEST] MOVE TO HARVEST POSITION");
-
+  Serial.println("[NEW TRAY] MOVE TO PICKUP APPROACH");
   if (!checkMove(
         movePoseAtSpeed(
-          HARVEST_POSES[slot],
-          ARM_SPEED_RAD_S
+          FINAL_HARVEST_TRAY_PICKUP_APPROACH_POSE,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
         ),
-        "HARVEST POSITION"
+        "NEW TRAY PICKUP APPROACH"
       ))
   {
     return false;
   }
 
-  // 2. 식물 집기
-  Serial.println("[HARVEST] GRIP");
-
-  if (!closeGripper())
+  Serial.println("[NEW TRAY] MOVE TO PICKUP POSITION 1");
+  if (!checkMove(
+        movePoseAtSpeed(
+          FINAL_HARVEST_TRAY_PICKUP_POSE_1,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY PICKUP POSITION 1"
+      ))
   {
-    Serial.println(
-      "[SYSTEM] GRIPPER CLOSE FAILED"
-    );
-
     return false;
   }
 
-  // 3. 식물을 잡은 상태로 들어 올림
-  Serial.println("[HARVEST] LIFT");
-
+  Serial.println("[NEW TRAY] MOVE TO PICKUP POSITION 2");
   if (!checkMove(
         movePoseAtSpeed(
-          HOME_LIFT_POSE,
-          ARM_SPEED_RAD_S
+          FINAL_HARVEST_TRAY_PICKUP_POSE_2,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
         ),
+        "NEW TRAY PICKUP POSITION 2"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] CLOSE GRIPPER");
+  if (!closeGripper())
+  {
+    Serial.println("[SYSTEM] NEW TRAY GRIP FAILED");
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] FOLLOW CARRY PATH 1");
+  if (!checkMove(
+        movePosePathAtSpeed(
+          FINAL_HARVEST_TRAY_CARRY_PATH_1,
+          FINAL_HARVEST_TRAY_CARRY_PATH_1_COUNT,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY CARRY PATH 1"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] FOLLOW CARRY PATH 2");
+  if (!checkMove(
+        movePosePathAtSpeed(
+          FINAL_HARVEST_TRAY_CARRY_PATH_2,
+          FINAL_HARVEST_TRAY_CARRY_PATH_2_COUNT,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY CARRY PATH 2"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] FOLLOW CARRY PATH 3");
+  if (!checkMove(
+        movePosePathAtSpeed(
+          FINAL_HARVEST_TRAY_CARRY_PATH_3,
+          FINAL_HARVEST_TRAY_CARRY_PATH_3_COUNT,
+          NEW_TRAY_LOADED_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY CARRY PATH 3"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] OPEN GRIPPER");
+  if (!openGripper())
+  {
+    Serial.println("[SYSTEM] NEW TRAY RELEASE FAILED");
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] EXIT POSE 1");
+  if (!checkMove(
+        movePoseAtSpeed(
+          FINAL_HARVEST_TRAY_EXIT_POSE_1,
+          NEW_TRAY_EMPTY_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY EXIT POSE 1"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] EXIT POSE 2");
+  if (!checkMove(
+        movePoseAtSpeed(
+          FINAL_HARVEST_TRAY_EXIT_POSE_2,
+          NEW_TRAY_EMPTY_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY EXIT POSE 2"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] EXIT POSE 3");
+  if (!checkMove(
+        movePoseAtSpeed(
+          FINAL_HARVEST_TRAY_EXIT_POSE_3,
+          NEW_TRAY_EMPTY_MOVE_SPEED_RAD_S
+        ),
+        "NEW TRAY EXIT POSE 3"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] RETURN HOME");
+  if (!moveHome())
+  {
+    return false;
+  }
+
+  Serial.println("[NEW TRAY] FINAL-HARVEST SEQUENCE COMPLETE");
+  return true;
+}
+
+static bool completePlantReleaseABABA()
+{
+  // The arm is already at pose A when this function is called.
+  Serial.println("[PLANT RELEASE] A-B-A-B-A START");
+
+  if (!checkMove(
+        movePoseAtSpeed(PLANT_DROP_POSE_B, RELEASE_POSE_SPEED_RAD_S),
+        "PLANT POSE B 1"
+      ))
+  {
+    return false;
+  }
+
+  if (!checkMove(
+        movePoseAtSpeed(PLANT_DROP_POSE_A, RELEASE_POSE_SPEED_RAD_S),
+        "PLANT POSE A 2"
+      ))
+  {
+    return false;
+  }
+
+  if (!checkMove(
+        movePoseAtSpeed(PLANT_DROP_POSE_B, RELEASE_POSE_SPEED_RAD_S),
+        "PLANT POSE B 2"
+      ))
+  {
+    return false;
+  }
+
+  if (!checkMove(
+        movePoseAtSpeed(PLANT_DROP_POSE_A, RELEASE_POSE_SPEED_RAD_S),
+        "PLANT POSE A 3"
+      ))
+  {
+    return false;
+  }
+
+  Serial.println("[PLANT RELEASE] A-B-A-B-A COMPLETE");
+  return true;
+}
+
+static bool harvestSlot(uint8_t slot)
+{
+  if (slot >= 5)
+  {
+    Serial.println("[SYSTEM] INVALID HARVEST SLOT");
+    return false;
+  }
+
+  Serial.print("[HARVEST] SLOT ");
+  Serial.print(slot + 1);
+  Serial.println(" START");
+
+  // Always begin a pickup with a confirmed open gripper. This keeps the
+  // gripper state independent of how the preceding slot ended.
+  Serial.println("[HARVEST] OPEN GRIPPER FOR PICKUP");
+  if (!openGripper())
+  {
+    Serial.println("[SYSTEM] GRIPPER OPEN FAILED BEFORE PICKUP");
+    return false;
+  }
+
+  if (!runManipulator(0.3))
+  {
+    return false;
+  }
+
+  Serial.println("[HARVEST] FOLLOW SMOOTH APPROACH PATH");
+  if (!checkMove(
+        movePosePathAtSpeed(
+          HARVEST_PATHS[slot],
+          HARVEST_PATH_COUNTS[slot],
+          HARVEST_APPROACH_SPEED_RAD_S
+        ),
+        "HARVEST APPROACH PATH"
+      ))
+  {
+    return false;
+  }
+
+  // The arm has reached the taught harvest pose. Close and wait before
+  // lifting so the crop is secured before any arm movement begins.
+  Serial.println("[HARVEST] CLOSE GRIPPER AND SECURE CROP");
+  if (!closeGripper())
+  {
+    Serial.println("[SYSTEM] GRIPPER CLOSE FAILED");
+    return false;
+  }
+
+  Serial.println("[HARVEST] GRIP SETTLE BEFORE LIFT");
+  if (!runManipulator(HARVEST_GRIP_SETTLE_SECONDS))
+  {
+    return false;
+  }
+
+  Serial.println("[HARVEST] LIFT");
+  if (!checkMove(
+        movePoseAtSpeed(HOME_LIFT_POSE, ARM_SPEED_RAD_S),
         "HARVEST LIFT"
       ))
   {
     return false;
   }
 
-  // 4. 식물 상자로 이동하기 전 중간 자세
-  Serial.println("[HARVEST] SAFE TRANSFER BEFORE DROP");
-
+  Serial.println("[HARVEST] SAFE TRANSFER POSE");
   if (!checkMove(
-        movePoseAtSpeed(
-          SAFE_TRANSFER_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "SAFE TRANSFER BEFORE DROP"
+        movePoseAtSpeed(SAFE_TRANSFER_POSE, ARM_SPEED_RAD_S),
+        "SAFE TRANSFER POSE"
       ))
   {
     return false;
   }
 
-  // 5. 식물 상자로 이동
-  Serial.println("[HARVEST] MOVE TO PLANT BOX");
-
+  Serial.println("[HARVEST] MOVE TO PLANT POSE A");
   if (!checkMove(
-        movePoseAtSpeed(
-          PLANT_DROP_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "PLANT DROP POSITION"
+        movePoseAtSpeed(PLANT_DROP_POSE_A, ARM_SPEED_RAD_S),
+        "PLANT POSE A"
       ))
   {
     return false;
   }
 
-  // 6. 식물 놓기: 열기 후 닫기/열기 2회
-  if (!releasePlantWithGripperMotion())
+  // Open only after the arm is confirmed at the plant release pose.
+  Serial.println("[HARVEST] OPEN GRIPPER AND RELEASE CROP");
+  if (!openGripper())
+  {
+    Serial.println("[SYSTEM] GRIPPER OPEN FAILED");
+    return false;
+  }
+
+  if (!runManipulator(HARVEST_RELEASE_SETTLE_SECONDS))
   {
     return false;
   }
 
-  // 7. 식물을 놓은 뒤 다시 중간 자세
-  Serial.println("[HARVEST] SAFE TRANSFER AFTER DROP");
-
-  if (!checkMove(
-        movePoseAtSpeed(
-          SAFE_TRANSFER_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "SAFE TRANSFER AFTER DROP"
-      ))
+  if (!completePlantReleaseABABA())
   {
     return false;
   }
 
-  // 8. 모든 칸에서 홈 복귀
-  Serial.println("[HARVEST] RETURN HOME");
-
-  if (!moveHome())
+  if (slot == 0)
   {
-    return false;
+    // Slot 1 is the final harvest. Continue with the tray-transfer route
+    // that was used during the slot-pose tuning sequence.
+    if (!transferNewTrayAfterFinalHarvest())
+    {
+      return false;
+    }
+  }
+  else
+  {
+    Serial.println("[HARVEST] RETURN HOME");
+    if (!moveHome())
+    {
+      return false;
+    }
   }
 
   Serial.print("[HARVEST] SLOT ");
   Serial.print(slot + 1);
   Serial.println(" COMPLETE");
-
   return true;
 }
 
 // =====================================================
-// 새 트레이 이송
-// =====================================================
-//
-// 5번 칸도 홈 복귀한 뒤 새 트레이 공정을 시작함.
-//
-// 순서:
-// 전환 자세
-// → 새 트레이 집는 자세
-// → 그리퍼 닫기
-// → 전환 자세
-// → 파종 컨베이어 자세
-// → 그리퍼 열기
-// → 닫기/열기 2회
-// → 중간 자세
-// → 홈 복귀
+// 현재 활성화된 테스트 시퀀스
+// 홈 → 그리퍼 열기 → 레일 호밍 → 5번 수확 → 홈 복귀
 // =====================================================
 
-static bool transferNewTray()
+// =====================================================
+// 1번 칸 수확 후 새 트레이 이송 검증 시퀀스
+// 현재 활성화됨
+// =====================================================
+
+static bool runFullHarvestAndTraySequence()
 {
-  Serial.println("[NEW TRAY] START");
-
-  // 1. 새 트레이 접근용 전환 자세
-  Serial.println("[NEW TRAY] MOVE TO TRANSFER POSE");
+  Serial.println("[SYSTEM] FULL HARVEST + NEW TRAY SEQUENCE START");
 
   if (!checkMove(
-        movePoseAtSpeed(
-          NEW_TRAY_TRANSFER_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "NEW TRAY TRANSFER BEFORE PICKUP"
-      ))
-  {
-    return false;
-  }
-
-  // 2. 새 트레이 집는 자세
-  Serial.println("[NEW TRAY] MOVE TO PICKUP POSITION");
-
-  if (!checkMove(
-        movePoseAtSpeed(
-          NEW_TRAY_PICKUP_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "NEW TRAY PICKUP POSITION"
-      ))
-  {
-    return false;
-  }
-
-  // 3. 새 트레이 집기
-  Serial.println("[NEW TRAY] GRIP");
-
-  if (!closeGripper())
-  {
-    Serial.println(
-      "[SYSTEM] NEW TRAY GRIP FAILED"
-    );
-
-    return false;
-  }
-
-  // 4. 새 트레이를 잡은 상태로 전환 자세
-  Serial.println("[NEW TRAY] LIFT TO TRANSFER POSE");
-
-  if (!checkMove(
-        movePoseAtSpeed(
-          NEW_TRAY_TRANSFER_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "NEW TRAY TRANSFER AFTER PICKUP"
-      ))
-  {
-    return false;
-  }
-
-  // 5. 파종 컨베이어로 이동
-  Serial.println("[NEW TRAY] MOVE TO SEEDING CONVEYOR");
-
-  if (!checkMove(
-        movePoseAtSpeed(
-          SEEDING_PLACE_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "SEEDING PLACE POSITION"
-      ))
-  {
-    return false;
-  }
-
-  // 6. 파종 컨베이어에 트레이 놓기
-  // 식물과 동일하게 열기 후 닫기/열기 동작을 2회 수행
-  if (!releaseTrayWithGripperMotion())
-  {
-    return false;
-  }
-
-  // 7. 중간 자세
-  Serial.println("[NEW TRAY] SAFE TRANSFER POSE");
-
-  if (!checkMove(
-        movePoseAtSpeed(
-          SAFE_TRANSFER_POSE,
-          ARM_SPEED_RAD_S
-        ),
-        "SAFE TRANSFER AFTER TRAY RELEASE"
-      ))
-  {
-    return false;
-  }
-
-  // 9. 최종 홈 복귀
-  Serial.println("[NEW TRAY] RETURN HOME");
-
-  if (!moveHome())
-  {
-    return false;
-  }
-
-  Serial.println("[NEW TRAY] COMPLETE");
-
-  return true;
-}
-
-// =====================================================
-// 전체 시퀀스
-// =====================================================
-//
-// 1. 매니퓰레이터 홈
-// 2. 그리퍼 열기
-// 3. 리니어 레일 호밍
-//
-// 4. 1번 수확
-//    → 들어 올림
-//    → 중간 자세
-//    → 식물 상자
-//    → 열기
-//    → 닫기/열기 2회
-//    → 중간 자세
-//    → 홈
-//
-// 5~8. 2~5번도 동일
-//
-// 9. 새 트레이 공정
-//    → 전환 자세
-//    → 새 트레이 집기
-//    → 전환 자세
-//    → 파종 컨베이어에 놓기
-//    → 닫기/열기 2회
-//    → 중간 자세
-//    → 홈
-// =====================================================
-
-static bool runFullSequence()
-{
-  // 1. 매니퓰레이터 홈
-  Serial.println("[SEQUENCE] MANIPULATOR HOME");
-
-  if (!checkMove(
-        movePoseTimed(
-          HOME_LIFT_POSE,
-          FIRST_HOME_MOVE_TIME
-        ),
+        movePoseTimed(HOME_LIFT_POSE, FIRST_HOME_MOVE_TIME),
         "INITIAL HOME"
       ))
   {
     return false;
   }
 
-  // 2. 그리퍼 열기
-  Serial.println("[SEQUENCE] OPEN GRIPPER");
-
   if (!openGripper())
   {
-    Serial.println(
-      "[SYSTEM] INITIAL GRIPPER OPEN FAILED"
-    );
-
     return false;
   }
-
-  // 3. 리니어 레일 호밍
-  Serial.println("[SEQUENCE] RAIL HOMING");
 
   if (!homeRail())
   {
-    Serial.println(
-      "[SYSTEM] RAIL HOMING FAILED"
-    );
-
     return false;
   }
 
-  // 레일 호밍 중 멈췄던 매니퓰레이터 처리 재개
   if (!runManipulator(0.5))
   {
     return false;
   }
 
-  // 4~8. 1번부터 5번까지 순차 수확
-  for (uint8_t slot = 0; slot < 5; ++slot)
+  for (uint8_t order_index = 0;
+       order_index < HARVEST_ORDER_COUNT;
+       ++order_index)
   {
+    const uint8_t slot = HARVEST_ORDER[order_index];
     if (!harvestSlot(slot))
     {
+      Serial.println("[SYSTEM] HARVEST SEQUENCE ABORTED");
       return false;
     }
   }
 
-  // 9. 새 트레이 이송
-  if (!transferNewTray())
-  {
-    return false;
-  }
-
-  Serial.println(
-    "[SYSTEM] FULL SEQUENCE COMPLETE"
-  );
-
+  Serial.println("[SYSTEM] FULL HARVEST + NEW TRAY SEQUENCE COMPLETE");
   return true;
 }
-
-// =====================================================
-// Arduino 기본 함수
-// =====================================================
 
 void setup()
 {
   Serial.begin(115200);
+
+  // 현재 통신 포트는 기존 comm 구조와 동일하게 Serial 사용.
+  // 이후 실제 연결 포트가 Serial1/Serial2 등으로 바뀌었다면
+  // Serial.begin / commBegin 부분만 해당 포트로 변경하면 됨.
   commBegin(Serial);
 
-  const unsigned long serial_start_ms =
-    millis();
+  const unsigned long serial_start_ms = millis();
 
-  while (
-    !Serial &&
-    millis() - serial_start_ms < 3000
-  )
+  while (!Serial && millis() - serial_start_ms < 3000)
   {
     delay(10);
   }
@@ -685,7 +639,7 @@ void setup()
   job_running = false;
   active_job_id = 0;
 
-  // Pi2에 준비 완료 보고
+  // Master에 준비 완료 보고
   commSendState(
     MANIP_STATE_IDLE,
     0
@@ -697,7 +651,7 @@ void loop()
   processManipulatorOnce();
   commPoll();
 
-  // ESTOP은 RESET보다 먼저 처리
+  // ESTOP은 RESET보다 우선 처리
   if (commTakeEstop())
   {
     enterEstop();
@@ -713,7 +667,7 @@ void loop()
     job_running = false;
     active_job_id = 0;
 
-    // RESET 이후 같은 ID 작업을 새 작업으로 받을 수 있게 초기화
+    // RESET 이후 같은 job_id도 새 작업으로 받을 수 있게 초기화
     last_completed_valid = false;
 
     if (manipulator_ready)
@@ -742,8 +696,8 @@ void loop()
     return;
   }
 
-  // 이미 완료한 작업을 Master가 다시 보낸 경우
-  // 실제 동작은 반복하지 않고 DONE만 재전송
+  // Master가 이미 완료된 동일 job_id를 재전송하면
+  // 실제 로봇 동작은 반복하지 않고 DONE만 재전송
   if (
     last_completed_valid &&
     requested_job_id == last_completed_job_id
@@ -771,7 +725,7 @@ void loop()
     return;
   }
 
-  // 이전 동작 실패 후 RESET하지 않은 상태
+  // 이전 시퀀스 실패 후 RESET하지 않은 상태
   if (sequence_failed)
   {
     commSendError(
@@ -802,16 +756,17 @@ void loop()
 
   if (COMM_TEST_ONLY)
   {
-    // 통신 검증용 가상 수확
     result = runManipulator(3.0);
   }
   else
   {
-    // 최신 manip 폴더의 실제 동작
-    result = runFullSequence();
+    // 최신 동작:
+    // HOME -> rail homing -> harvest 5,4,3,2,1
+    // -> slot 1 완료 후 new-tray transfer
+    result = runFullHarvestAndTraySequence();
   }
 
-  // 동작 도중 들어온 ESTOP이 있었는지 한 번 더 확인
+  // 시퀀스 종료 직후 들어온 ESTOP까지 확인
   commPoll();
 
   if (commTakeEstop())
@@ -820,15 +775,12 @@ void loop()
     return;
   }
 
-  const uint8_t finished_job_id =
-    active_job_id;
+  const uint8_t finished_job_id = active_job_id;
 
   if (result)
   {
-    last_completed_job_id =
-      finished_job_id;
+    last_completed_job_id = finished_job_id;
     last_completed_valid = true;
-
     sequence_failed = false;
 
     commSendDone(
