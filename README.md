@@ -4,7 +4,7 @@
 
 > 2026 한이음 드림업 공모전 | 프로젝트 번호: 26_HC230
 
-## 💡 1. 프로젝트 개요
+##  1. 프로젝트 개요
 
 ### 1-1. 프로젝트 소개
 
@@ -53,13 +53,13 @@
 - **센서** : pH, TDS, DHT22(기온·습도), DS18B20(수온), 수위센서, 엔드스탑, 엔코더
 - **모니터링 웹** : Flask, HTML/CSS/JavaScript
 
-## 💡 2. 팀원 소개
+##  2. 팀원 소개
 
 | 멘티1 | 멘티2 | 멘티3 | 멘티4 | 멘토 |
 |:---:|:---:|:---:|:---:|:---:|
 | • 프로젝트 총괄<br>• SCARA 로봇<br>• 전장 | • 하드웨어 제작<br>• 기구 설계 | • STM32 펌웨어<br>• 컨베이어/직교로봇<br>• 전체 통신 | • 비전(YOLO)<br>• 웹 모니터링<br>• 매니퓰레이터 | • 프로젝트 멘토<br>• 기술 자문 |
 
-## 💡 3. 시스템 구성도
+##  3. 시스템 구성도
 
 <img src="docs/images/hw_architecture.png" width="900" alt="H/W 구성도">
 
@@ -88,11 +88,11 @@
 └── Mentoring/           # 멘토링 기록
 ```
 
-## 💡 4. 작품 소개영상
+##  4. 작품 소개영상
 
 [![2026 한이음 드림업 공모전_자원순환형 AI 재배 공정 시스템_T'ark 팀](https://img.youtube.com/vi/-y7UJgUn2j8/hqdefault.jpg)](https://www.youtube.com/watch?v=-y7UJgUn2j8)
 
-## 💡 5. 핵심 소스코드
+##  5. 핵심 소스코드
 
 ### 5-1. UART 바이너리 프레임 생성 및 파싱 (`ros_comm/src/smartfarm_pi1/smartfarm_pi1/pi1_node.py`)
 
