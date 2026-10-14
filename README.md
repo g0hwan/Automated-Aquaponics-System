@@ -61,9 +61,9 @@
 
 ##  3. 시스템 구성도
 
-<img src="docs/images/hw_architecture.png" width="900" alt="H/W 구성도">
-
 ### 3-1. H/W 구성도
+
+<img src="docs/images/hw_architecture.png" width="900" alt="H/W 구성도">
 
 | 구역 | SBC | 연결 장치 |
 | --- | --- | --- |
