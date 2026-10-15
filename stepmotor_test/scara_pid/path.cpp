@@ -146,13 +146,43 @@ static void startScaraMotion(void) {
 // =========================
 // 섹션 함수
 // =========================
+
+// path.cpp 상단, sect0_started 등 선언 근처에 추가
+
+// sect0 전용 호밍 게인
+static const float SECT0_HOME_J1_KP = 20.0f, SECT0_HOME_J1_KI = 0.005f, SECT0_HOME_J1_KD = 10.5f;
+//static const float SECT0_HOME_J3_KP = 20.0f, SECT0_HOME_J3_KI = 0.00f, SECT0_HOME_J3_KD = 19.7f;
+//static const float SECT0_HOME_J3_KP = 10.0f, SECT0_HOME_J3_KI = 0.0f, SECT0_HOME_J3_KD = 9.5f;
+static const float SECT0_HOME_J3_KP = 18.5f, SECT0_HOME_J3_KI = 0.0001f, SECT0_HOME_J3_KD = 8.5f;
+static void applySect0HomeGains(PID save[2])
+{
+  save[0] = j1_pid;
+  save[1] = j3_pid;
+
+  j1_pid.Kp = SECT0_HOME_J1_KP; j1_pid.Ki = SECT0_HOME_J1_KI; j1_pid.Kd = SECT0_HOME_J1_KD;
+  j3_pid.Kp = SECT0_HOME_J3_KP; j3_pid.Ki = SECT0_HOME_J3_KI; j3_pid.Kd = SECT0_HOME_J3_KD;
+
+  j1_pid.integral = 0.0f; j1_pid.prevError = 0.0f;
+  j3_pid.integral = 0.0f; j3_pid.prevError = 0.0f;
+}
+
+static void restoreGainsAfterSect0Home(const PID save[2])
+{
+  j1_pid = save[0];
+  j3_pid = save[1];
+
+  j1_pid.integral = 0.0f; j1_pid.prevError = 0.0f;
+  j3_pid.integral = 0.0f; j3_pid.prevError = 0.0f;
+}
 void sect0(void){
   if (!sect0_started) {
     sect0_started = true;
     reportMotionStart();
   }
-
+  PID savedGains[2];
+  applySect0HomeGains(savedGains);
   home();
+  restoreGainsAfterSect0Home(savedGains);
   delay(500);
 
   moveRail(3000, 0);   
@@ -183,15 +213,17 @@ void sect1(void) {
   }
   
   enc_reset_j3();
+  delay(50);
   move_j3_wait(155+45+5-360+75);
   //delay(100000);
-  j1_home_stop_on_switch(false, 2200);
+  j1_home_stop_on_switch(false, 550);
   delay(1300);
   enc_reset_j1();
   delay(10);
-  move_j1_wait(45,1000,1.0, 150, 2500);
-  enc_reset_j1();
+  move_j1_wait(45,800,1.0, 150, 2350);
   delay(500);
+  enc_reset_j1();
+  delay(50);
 
   j4_move(true, 500);
   delay(140);
@@ -205,19 +237,16 @@ void sect1(void) {
   delay(300);
   //delay(300);
   move_j2_cm(1); // 살짝 올라가서
+  delay(400);
   enc_reset_j1();
-  delay(100);
+  delay(200);
   move_j1_wait(-20, 800, 2.0, 150, 1000); // 뒤로 좀 빼고
   delay(500);
   enc_reset_j1();
   move_j2_cm(10); // 올라가고
-  //move_j1_wait(-10);
-  //move_j2_cm(3);
-
-  //setCrf(0); // 직교로봇 리셋
-  //sendCrf();
-  j4_move(false, 2000);
-  delay(140);
+  
+  j4_move(false, 1000);
+  delay(140*2);
   j4_stop();
   move_j2_cm(3);
   enc_reset_j3();
@@ -229,7 +258,7 @@ void sect1(void) {
   j1_home_stop_on_switch(true, 1200);
   delay(500);
   enc_reset_j1();
-  
+  //int activeUv = 0;
    
   if (activeUv == 0) // 오른쪽
   {
@@ -253,7 +282,7 @@ void sect1(void) {
 
     enc_reset_j1();
     delay(10);
-    move_j1_wait(42, 1200, 2.0, 150, 2500);
+    move_j1_wait(43, 1200, 2.0, 150, 2500);
     delay(300);
     enc_reset_j1();
     delay(100);
@@ -270,7 +299,9 @@ void sect1(void) {
     delay(10);
     move_j2_cm(3.7);
     j1_home_stop_on_switch(true, 3500);
-    delay(500);
+    delay(10);
+    enc_reset_j1();
+    delay(10);
     //uv++;
   }
   else if(activeUv == 1) //왼쪽
@@ -309,12 +340,14 @@ void sect1(void) {
     j4_stop();
     move_j2_cm(3.7);
     j1_home_stop_on_switch(true, 3500);
-    delay(200);
+    delay(20);
     enc_reset_j1();
-    delay(500);
+    delay(10);
     //uv++;
   }
+  move_j1_wait(-10, 1000, 1.0, 150, 800);
   delay(1000);
+
   finishSect1();
 
   sect1_started = false;
@@ -326,12 +359,17 @@ void sect2(void) {
     sect2_started = true;
     reportMotionStart();
     //startScaraMotion();
+    //PID savedGains[2];
+    //applySect0HomeGains(savedGains);
     home();
+    //restoreGainsAfterSect0Home(savedGains);
+    delay(500);
   }
     
   
   //urf=0;
   //ulf++;
+
   moveRail_untilStop(false, 4000, stop3_rail);
   if (activeSource == SCARA_SLOT_LEFT)
   {
@@ -497,6 +535,9 @@ void sect2(void) {
     enc_reset_j1();
     j1_home_stop_on_switch(true, 3200);
     enc_reset_j1();
+    delay(10);
+    move_j1_wait(-10, 1000, 1.0, 150, 2000);
+    delay(100);
     //delay(10000000000);
     //wrf ++;
   }
@@ -542,8 +583,9 @@ void sect2(void) {
     enc_reset_j1();
     j1_home_stop_on_switch(true, 3200);
     enc_reset_j1();
-
-    //delay(10000000000);
+    delay(10);
+    move_j1_wait(-10, 1000, 1.0, 150, 2000);
+    delay(100);
     //wlf ++;
   }
 
@@ -559,7 +601,11 @@ void sect3(void) {
     sect3_started = true;
     //startScaraMotion();
     reportMotionStart();
+    //PID savedGains[2];
+    //applySect0HomeGains(savedGains);
     home();
+    //restoreGainsAfterSect0Home(savedGains);
+    delay(500);
   } 
 
   moveRail_untilStop(false, 4400, stop2_rail); 
@@ -568,12 +614,21 @@ void sect3(void) {
   enc_reset_j1();
   delay(1000);
   move_j2_cm(-4.5);
-
+  //int SCARA_SLOT_LEFT = 0;
   if(activeSource == SCARA_SLOT_LEFT)
   {
     enc_reset_j1();
     delay(20);
-    move_j1_wait(205,2500);
+    move_j1_wait(-30,1500);
+    delay(700);
+    enc_reset_j1();
+    
+    j1_home_stop_on_switch(false, 800);
+    delay(500);
+
+    enc_reset_j1();
+    delay(20);
+    move_j1_wait(208,3500);
     delay(700);
     enc_reset_j1();
     //j1_home_stop_on_switch(true, 3200);
@@ -587,7 +642,7 @@ void sect3(void) {
     enc_reset_j3();
     delay(15);
     move_j3_wait(-25-10-20-40);
-    delay(200);
+    delay(400);
     enc_reset_j3();
 
     j4_move(false, 1620);
@@ -601,11 +656,11 @@ void sect3(void) {
     grip(true);
     move_j2_cm(-14.5 - 2.5);
     delay(10);
-    grip(false); //놓기
+    grip(false); 
     move_j2_cm(17);
 
     moveRail_untilStop(true, 4000, stop3_rail);
-    moveRail(2500,1);
+    moveRail(2350,1);
     delay(2000);
     //j4_stop();
     stopRail();
@@ -617,7 +672,7 @@ void sect3(void) {
 
     enc_reset_j1();
     delay(35);
-    move_j1_wait(20,500, 1.0, 150, 2000);
+    move_j1_wait(22,500, 1.0, 150, 2000);
     delay(500);
     enc_reset_j1();
 
@@ -708,25 +763,25 @@ void sect3(void) {
   moveRail_untilStop(true, 2000, stop_rail);
 
   moveRail(2000, 1); 
-  delay(1800);
+  delay(2100);
   stopRail();
 
   move_j2_cm(-8.5);
   grip(true);
   move_j2_cm(10.5);
 
-  moveRail(4000, 0); 
+  moveRail(4500, 0); 
   delay(1000);
   stopRail();
 
+  
+  j1_home_stop_on_switch(true, 3200);
+  delay(700);
   enc_reset_j3();
-  delay(20);
+  delay(50);
   move_j3_wait(55);
   delay(200);
   enc_reset_j3();
-  
-  j1_home_stop_on_switch(true, 3200);
-
   
   finishSect3();
 

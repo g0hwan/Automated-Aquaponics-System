@@ -9,28 +9,33 @@
 void setup() {
   serialProtocolBegin(115200);
   setServo();
-  delay(50);
+  delay(5);
   motor_pin();
+  delay(5);
   set_tim();
+  delay(5);
   set_int();
+  delay(5);
   setflag();
+  delay(5);
   updatePrevFlags();
+  delay(5);
   sendState(SCARA_STATE_IDLE);  
 }
 
 void loop() {
-<<<<<<< HEAD
+
   //home();
-  sect0();
-  sect1();
+  //delay(1000000);
+  //sect0();
+  //sect1();
+  //sect3();
   //move_j2_cm(1);
   //delay(1000000);
   //delay(500000);
-  /*
-    serialReceiveTask();
-=======
+  
   serialReceiveTask();
->>>>>>> 19894be591562613b543e6a628dae01d2e1c257c
+  serialReceiveTask();
 
   if (processScaraControlRequests()) {
       return;
@@ -38,9 +43,8 @@ void loop() {
 
   pathTask();
 
-<<<<<<< HEAD
-    pathTask();
-  */
+  pathTask();
+  
   //sect0();
   //sect1();
   //delay(10000000000);
@@ -61,8 +65,7 @@ void loop() {
   
   //Serial.println(digitalRead(stop_z)); // 안누르면 1, 누르면 0 이 나오면 정상
   //delay(5);
-=======
->>>>>>> 19894be591562613b543e6a628dae01d2e1c257c
+
 }
 
 

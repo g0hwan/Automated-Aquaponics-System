@@ -96,6 +96,8 @@ void move_j2_cm(float cm, unsigned long pps)
 
 void home()
 {
+  setServo();
+  delay(100);
   motors_enable_all(true);
   delay(100);
   //grip_timer_off(); 
@@ -113,7 +115,9 @@ void home()
 
   //delay(50);
   enc_reset_j3();
+  delay(50);
   move_j3_wait(190, 5500);
+  delay(100);
   enc_reset_j3();
   delay(100);
   //Serial.println("j3 back");
@@ -128,20 +132,21 @@ void home()
   //Serial.println("j2 home");
 
   enc_reset_j1();
-  delay(200);
+  delay(250);
   //Serial.println("j1_back start");
-  move_j1_wait(-30, 3000, 1.0, 150, 1500);
+  move_j1_wait(-40, 1000, 1.0, 150, 2000);
   //Serial.println("j1_back");
   delay(750);
   enc_reset_j1();
   delay(200);
   j1_home_stop_on_switch(false, 1500);
-  delay(700);
+  delay(900);
   enc_reset_j1();
-  //Serial.println("j1 home");
   delay(200);
 
-  move_j1_wait(-40,2000, 1.0, 150, 2000);
+  enc_reset_j1();
+  delay(20);
+  move_j1_wait(-40,1000, 1.0, 150, 2000);
   delay(800);
   enc_reset_j1();
 
@@ -156,7 +161,7 @@ void home()
   delay(100);
 
   enc_reset_all();
-  motors_enable_all(false);
+  //motors_enable_all(false);
 }
 
 void goXY(float x, float y, unsigned long pps1, unsigned long int pps2)
